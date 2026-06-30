@@ -1,0 +1,15 @@
+venv/
+env/
+data/raw/*.csv
+data/raw/*.tsv
+data/raw/*.json
+data/processed/*.csv
+outputs/*.npy
+outputs/*.faiss
+outputs/*.index
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.env
