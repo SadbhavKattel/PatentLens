@@ -48,12 +48,16 @@ def prepare_dataframe(df):
     """Clean titles/abstracts and derive the columns the retrievers/evaluation need.
 
     Idempotent and side-effect-free: returns a new DataFrame, leaves the input untouched.
+    `inventors`/`assignees` are optional (absent from the original 3,000-patent CSV,
+    present when sourced via data_fetch.fetch_patents) -- filled with empty lists if missing.
     """
     stop_words = get_stopwords()
     df = df.copy()
 
     df['cpc_codes'] = df['cpc_codes'].apply(_split_pipe_list)
     df['cited_patents'] = df['cited_patents'].apply(_split_pipe_list)
+    for col in ('inventors', 'assignees'):
+        df[col] = df[col].apply(_split_pipe_list) if col in df.columns else [[] for _ in range(len(df))]
 
     df['clean_title'] = df['title'].apply(lambda t: clean_text(t, stop_words))
     df['clean_abstract'] = df['abstract'].apply(lambda t: clean_text(t, stop_words))

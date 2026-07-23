@@ -31,7 +31,13 @@ SELECT
   ) AS cpc_codes,
   ARRAY_TO_STRING(
     ARRAY(SELECT publication_number FROM UNNEST(citation) WHERE publication_number != ''), '|'
-  ) AS cited_patents
+  ) AS cited_patents,
+  ARRAY_TO_STRING(
+    ARRAY(SELECT name FROM UNNEST(inventor_harmonized) WHERE name != ''), '|'
+  ) AS inventors,
+  ARRAY_TO_STRING(
+    ARRAY(SELECT name FROM UNNEST(assignee_harmonized) WHERE name != ''), '|'
+  ) AS assignees
 FROM `patents-public-data.patents.publications`
 WHERE country_code = '{country}'
   AND EXISTS (SELECT 1 FROM UNNEST(cpc) AS c WHERE c.code LIKE '{cpc_prefix}%')
@@ -67,9 +73,14 @@ def estimate_query_cost(project_id, cpc_prefix="G06N3", country="US", row_cap=No
 
 
 def fetch_patents(project_id, cpc_prefix="G06N3", country="US", row_cap=None):
-    """Runs the query for real and returns a DataFrame matching patents_g06n3_wide.csv's schema:
+    """Runs the query for real and returns a DataFrame with:
     publication_number, filing_date, publication_date, title, abstract, cpc_codes
-    (pipe-joined), cited_patents (pipe-joined).
+    (pipe-joined), cited_patents (pipe-joined), inventors (pipe-joined), assignees
+    (pipe-joined).
+
+    `row_cap=None` pulls every US patent BigQuery finds under the CPC prefix -- for
+    G06N3 that's on the order of tens of thousands. Always run `estimate_query_cost()`
+    first. If you only want a bounded sample, pass e.g. `row_cap=50000`.
     """
     from google.cloud import bigquery
 

@@ -110,6 +110,50 @@ def evaluate_retriever(rank_fn, ground_truth, k_values=(5, 10, 20), max_rank_poo
     return summary, per_query
 
 
+def paired_bootstrap_test(values_a, values_b, n_boot=5000, seed=42):
+    """Paired bootstrap significance test for "does model B actually beat model A?"
+
+    values_a/values_b must be the SAME metric evaluated on the SAME queries in the same
+    order (e.g. two entries of the per_query dict returned by evaluate_retriever for the
+    same metric key) -- that pairing is what makes this more powerful than comparing two
+    independent confidence intervals by eye.
+
+    Resamples queries (not points) with replacement, recomputes the mean difference each
+    time, and reports a two-sided p-value for H0: mean(B) == mean(A). With citation ground
+    truth this small, "looks better" isn't the same as "is significantly better" -- this
+    is the check for the latter.
+    """
+    a = np.asarray(values_a, dtype=float)
+    b = np.asarray(values_b, dtype=float)
+    if len(a) != len(b):
+        raise ValueError("paired arrays must come from the same queries, in the same order")
+
+    n = len(a)
+    diffs = b - a
+    observed_diff = diffs.mean()
+
+    rng = np.random.default_rng(seed)
+    boot_diffs = np.empty(n_boot)
+    for i in range(n_boot):
+        sample_idx = rng.integers(0, n, size=n)
+        boot_diffs[i] = diffs[sample_idx].mean()
+
+    if observed_diff >= 0:
+        p_value = min(1.0, 2 * np.mean(boot_diffs <= 0))
+    else:
+        p_value = min(1.0, 2 * np.mean(boot_diffs >= 0))
+
+    ci_low, ci_high = np.percentile(boot_diffs, [2.5, 97.5])
+    return {
+        'mean_diff': float(observed_diff),
+        'ci_low': float(ci_low),
+        'ci_high': float(ci_high),
+        'p_value': float(p_value),
+        'significant_at_0.05': bool(p_value < 0.05),
+        'n_queries': n,
+    }
+
+
 def summary_to_dataframe(all_summaries: dict):
     """all_summaries: {model_name: summary_dict_from_evaluate_retriever}."""
     rows = []

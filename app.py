@@ -59,20 +59,32 @@ def google_patents_url(publication_number: str) -> str:
     return f"https://patents.google.com/patent/{publication_number.replace('-', '')}"
 
 
-def render_result_card(row, score):
-    with st.container(border=True):
-        cols = st.columns([5, 1])
-        with cols[0]:
-            st.markdown(f"**{row['title']}**")
-            st.caption(f"{row['publication_number']} · filed {row['filing_date']}")
-        with cols[1]:
-            st.metric("Score", f"{score:.3f}")
-        abstract = row["abstract"]
-        st.write(abstract[:400] + ("..." if len(abstract) > 400 else ""))
-        cpc = row["cpc_codes"]
-        if isinstance(cpc, (list,)) and cpc:
-            st.caption("CPC: " + ", ".join(cpc[:6]))
-        st.markdown(f"[View on Google Patents]({google_patents_url(row['publication_number'])})")
+def _authors_label(row) -> str:
+    inventors = row["inventors"] if isinstance(row["inventors"], list) else []
+    if not inventors:
+        return "Inventors not available"
+    label = ", ".join(inventors[:3])
+    if len(inventors) > 3:
+        label += f" +{len(inventors) - 3} more"
+    return label
+
+
+def render_result_button(rank, row, score):
+    authors = _authors_label(row)
+    button_label = f"#{rank}  {row['title']}  —  {authors}  ·  similarity {score:.3f}"
+    st.link_button(
+        button_label,
+        google_patents_url(row["publication_number"]),
+        use_container_width=True,
+    )
+    assignees = row["assignees"] if isinstance(row["assignees"], list) else []
+    assignee_str = assignees[0] if assignees else None
+    caption_parts = [row["publication_number"], f"filed {row['filing_date']}"]
+    if assignee_str:
+        caption_parts.append(f"assignee: {assignee_str}")
+    st.caption(" · ".join(caption_parts))
+    abstract = row["abstract"]
+    st.caption(abstract[:280] + ("..." if len(abstract) > 280 else ""))
 
 
 def search_tab(df, retrievers, stop_words):
@@ -117,7 +129,7 @@ def search_tab(df, retrievers, stop_words):
             st.subheader("Query patent")
             q_row = df.loc[query_idx]
             st.markdown(f"**{q_row['title']}**")
-            st.caption(q_row["publication_number"])
+            st.caption(f"{q_row['publication_number']} · {_authors_label(q_row)}")
             st.write(q_row["abstract"][:400])
             st.divider()
             idxs, scores = retriever.rank(query_idx, top_k=top_k)
@@ -129,8 +141,8 @@ def search_tab(df, retrievers, stop_words):
             idxs, scores = retriever.rank_text(cleaned, top_k=top_k)
 
         st.subheader(f"Top {len(idxs)} similar patents — {model_name}")
-        for idx, score in zip(idxs, scores):
-            render_result_card(df.loc[idx], score)
+        for rank, (idx, score) in enumerate(zip(idxs, scores), start=1):
+            render_result_button(rank, df.loc[idx], score)
 
 
 def comparison_tab(metrics_summary, metrics_pivot):
@@ -183,6 +195,16 @@ def comparison_tab(metrics_summary, metrics_pivot):
         "Error bars/tooltips show 95% bootstrap confidence intervals — with a few hundred "
         "citation pairs, point estimates alone can be misleading."
     )
+
+    sig_path = MODELS_DIR / "significance_tests.csv"
+    if sig_path.exists():
+        st.divider()
+        st.subheader("Is the top model actually better, or just lucky?")
+        st.caption(
+            "Paired bootstrap test on MRR between the best model and each runner-up, "
+            "computed on the same queries. p < 0.05 means the gap is unlikely to be noise."
+        )
+        st.dataframe(pd.read_csv(sig_path), use_container_width=True)
 
 
 def main():
