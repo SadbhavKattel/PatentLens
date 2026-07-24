@@ -8,6 +8,11 @@ outputs/*.npy
 outputs/*.faiss
 outputs/*.index
 models/
+
+# presentation / rendered decks — not committed (keep figures + metrics.md)
+presentation/
+outputs/week8/*.html
+outputs/week8/*.pdf
 .ipynb_checkpoints/
 __pycache__/
 *.pyc
