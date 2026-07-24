@@ -1,0 +1,5 @@
+model,n_pairs,cited_pair_mean_score,random_pair_mean_score,lift_pct,auc,low_overlap_n_pairs,low_overlap_threshold_jaccard,low_overlap_cited_mean_score,low_overlap_random_mean_score,low_overlap_lift_pct,low_overlap_auc
+TF-IDF,15000,0.1729,0.0224,670.1,0.8162,3777,0.038,0.0299,0.02,49.1,0.5532
+BM25,15000,27.3403,5.3047,415.4,0.8145,3777,0.038,4.677,4.8076,-2.7,0.517
+LSA,15000,0.3427,0.103,232.6,0.8126,3777,0.038,0.1349,0.0963,40.2,0.6052
+MiniLM,15000,0.4871,0.2688,81.2,0.8544,3777,0.038,0.3405,0.2598,31.1,0.6955

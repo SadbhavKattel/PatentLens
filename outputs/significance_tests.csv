@@ -1,0 +1,4 @@
+best_model,compared_to,mrr_mean_diff,ci_low,ci_high,p_value,significant_at_0.05
+MiniLM,TF-IDF,0.0173,0.0142,0.0203,0.0,True
+MiniLM,LSA,0.0303,0.0271,0.0335,0.0,True
+MiniLM,BM25,0.002,-0.0011,0.005,0.21,False
