@@ -173,6 +173,103 @@ def paired_bootstrap_test(values_a, values_b, n_boot=5000, seed=42):
     }
 
 
+def citation_signal_test(score_fn, ground_truth, n_docs, token_sets=None,
+                          max_pairs=15000, low_overlap_percentile=25, seed=42):
+    """Do truly-cited patents score higher than random pairs -- even when their text
+    barely overlaps?
+
+    Recall/MRR/NDCG (evaluate_retriever) test *ranking*: does the true citation land near
+    the top of a full-corpus search. This tests something more basic and arguably more
+    convincing: for a real (citing, cited) pair, is score_fn(citing, cited) systematically
+    higher than score_fn(citing, random_other_patent)? An AUC of 0.5 would mean the score
+    is no better than chance at telling a true citation from a random pair; 1.0 would mean
+    perfect separation.
+
+    score_fn(idx_a, idx_b) -> float. Every retriever in retrieval.py exposes
+    `.score_pair(idx_a, idx_b)` for this.
+
+    token_sets: optional list/dict of idx -> set(tokens), e.g. from
+    `df['clean_text'].str.split().apply(set)`. When given, also computes Jaccard word
+    overlap for every pair and repeats the analysis restricted to the pairs with the
+    LEAST text overlap (bottom `low_overlap_percentile`) -- i.e. citation pairs a pure
+    keyword-matching model would have no way to find. If the model still separates those
+    from random pairs, that's evidence it's capturing real relatedness beyond shared words.
+
+    max_pairs caps how many (citing, cited) pairs get sampled -- this is an O(pairs) test,
+    not O(queries x corpus) like evaluate_retriever, so it stays fast even sampled generously.
+    """
+    rng = np.random.default_rng(seed)
+
+    all_pairs = [(q, c) for q, cited in ground_truth.items() for c in cited]
+    if len(all_pairs) > max_pairs:
+        idx = rng.choice(len(all_pairs), size=max_pairs, replace=False)
+        all_pairs = [all_pairs[i] for i in idx]
+
+    cited_by_query = {q: set(cited) | {q} for q, cited in ground_truth.items()}
+
+    pos_scores, neg_scores, jaccards = [], [], []
+    for query_idx, cited_idx in all_pairs:
+        pos_scores.append(score_fn(query_idx, cited_idx))
+
+        exclude = cited_by_query[query_idx]
+        while True:
+            neg_idx = int(rng.integers(0, n_docs))
+            if neg_idx not in exclude:
+                break
+        neg_scores.append(score_fn(query_idx, neg_idx))
+
+        if token_sets is not None:
+            a, b = token_sets[query_idx], token_sets[cited_idx]
+            union = len(a | b)
+            jaccards.append(len(a & b) / union if union else 0.0)
+
+    pos_scores = np.array(pos_scores)
+    neg_scores = np.array(neg_scores)
+
+    result = {
+        'n_pairs': len(pos_scores),
+        'pos_mean': float(pos_scores.mean()),
+        'neg_mean': float(neg_scores.mean()),
+        'pos_median': float(np.median(pos_scores)),
+        'neg_median': float(np.median(neg_scores)),
+        'lift_pct': float((pos_scores.mean() - neg_scores.mean()) / (abs(neg_scores.mean()) + 1e-9) * 100),
+        'auc': _roc_auc(pos_scores, neg_scores),
+        'pos_scores': pos_scores,
+        'neg_scores': neg_scores,
+    }
+
+    if token_sets is not None:
+        jaccards = np.array(jaccards)
+        threshold = np.percentile(jaccards, low_overlap_percentile)
+        low_mask = jaccards <= threshold
+        low_pos, low_neg = pos_scores[low_mask], neg_scores[low_mask]
+        result['low_overlap_threshold'] = float(threshold)
+        result['low_overlap_n_pairs'] = int(low_mask.sum())
+        result['low_overlap_pos_mean'] = float(low_pos.mean()) if low_mask.sum() else 0.0
+        result['low_overlap_neg_mean'] = float(low_neg.mean()) if low_mask.sum() else 0.0
+        result['low_overlap_lift_pct'] = (
+            float((low_pos.mean() - low_neg.mean()) / (abs(low_neg.mean()) + 1e-9) * 100)
+            if low_mask.sum() else 0.0
+        )
+        result['low_overlap_auc'] = _roc_auc(low_pos, low_neg) if low_mask.sum() >= 10 else None
+
+    return result
+
+
+def _roc_auc(pos_scores, neg_scores):
+    """AUC via the Mann-Whitney U statistic -- avoids an sklearn dependency for one metric.
+    Equivalent to sklearn.metrics.roc_auc_score(y_true, y_score) for this pos/neg setup.
+    """
+    if len(pos_scores) == 0 or len(neg_scores) == 0:
+        return None
+    combined = np.concatenate([pos_scores, neg_scores])
+    ranks = pd.Series(combined).rank().values
+    pos_rank_sum = ranks[:len(pos_scores)].sum()
+    n_pos, n_neg = len(pos_scores), len(neg_scores)
+    u = pos_rank_sum - n_pos * (n_pos + 1) / 2
+    return float(u / (n_pos * n_neg))
+
+
 def summary_to_dataframe(all_summaries: dict):
     """all_summaries: {model_name: summary_dict_from_evaluate_retriever}."""
     rows = []

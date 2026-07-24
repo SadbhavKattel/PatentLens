@@ -61,10 +61,47 @@ Paired bootstrap test, MiniLM vs. each alternative, on MRR:
 ## Key findings
 
 1. **Scores dropped substantially vs. the 3,000-patent pilot** (e.g., MiniLM MRR 0.113 here vs. ~0.17 there). **This is expected, not a regression.** At 100,000 patents there are far more plausible-looking distractors for any retriever to get confused by than at 3,000 — recall on a fixed-size top-k naturally falls as the haystack grows. The pilot's higher numbers were partly an artifact of a smaller, easier search space.
-2. **Semantic (MiniLM) and lexical (BM25) retrieval are statistically tied at this scale.** Neither approach is a clear winner — that held true in the 3,000-patent pilot too, so it's a consistent finding, not noise from one run.
+2. **Semantic (MiniLM) and lexical (BM25) retrieval are statistically tied on ranking quality at this scale** — but not on *why* they get there. The citation-signal test below shows MiniLM specifically wins on citation pairs with little shared vocabulary, where BM25 performs at chance. The ranking metrics tie because most citations in this corpus do share some vocabulary (same subfield, similar jargon); the tie would likely break in MiniLM's favor on a corpus with more paraphrased/cross-terminology citations.
 3. **LSA remains the weakest model** — compressing to 100 components keeps only ~22% of the original TF-IDF variance at this corpus size, losing more signal than it saves in compute.
 4. **Absolute scores are low across the board** (best MRR ≈ 0.11, meaning the true citation lands around rank 9 on average when it's found at all). Patent citations reflect legal/prior-art judgment as much as topical similarity, and the search space here is large — no text-only retrieval model should be expected to get anywhere close to perfect recall.
 5. **Citation ground-truth coverage improved dramatically with scale** — 45.0% of patents now have an in-sample citation (up from 4.2% in the pilot), which is why every confidence interval above is much tighter than the pilot's despite evaluating on a 10k-query sample rather than the full 44,985.
+
+## Does the model detect true relatedness, or just shared words?
+
+Recall/MRR/NDCG above test *ranking*: does the true citation land near the top of a
+full-corpus search. That's a demanding test — it competes against 100,000 other patents.
+This section asks a more basic question directly: **for a real (citing, cited) pair, is
+the similarity score actually higher than for a random pair of patents — and does that
+hold up even when the two patents barely share any vocabulary?**
+
+Method: sampled 15,000 real citation pairs. For each one, compared the model's similarity
+score against a random non-cited patent (same citing patent, so it's an apples-to-apples
+comparison). Repeated the comparison restricted to the 25% of citation pairs with the
+*least* word overlap (Jaccard similarity on cleaned text) — patents that cite each other
+but don't read alike. AUC of 0.5 = the score is no better than a coin flip at telling a
+real citation from a random pair; 1.0 = perfect separation.
+
+| Model | AUC (all citation pairs) | AUC (low word-overlap pairs only) | Score lift, low-overlap pairs |
+|---|---|---|---|
+| **MiniLM** | 0.854 | **0.696** | +31.1% |
+| LSA | 0.813 | 0.605 | +40.2% |
+| TF-IDF | 0.816 | 0.553 | +49.1% |
+| BM25 | 0.815 | 0.517 (≈ chance) | −2.7% |
+
+![Score distributions: cited vs random pairs](outputs/citation_signal_distributions.png)
+![AUC: all pairs vs low-overlap pairs](outputs/citation_signal_auc.png)
+
+**Plain-language takeaway:** yes — every model scores true citations meaningfully higher
+than random pairs overall (AUC 0.81-0.85, well above the 0.5 coin-flip line). But that
+result is mostly driven by citation pairs that *do* share vocabulary, which any keyword
+matcher can find. The real test is the low-word-overlap column: **BM25 collapses to
+chance (0.517) and even loses money on average (−2.7% lift)** — when a citing patent
+doesn't reuse the cited patent's words, pure keyword matching has nothing to work with,
+by construction. TF-IDF fares only slightly better (0.553). **MiniLM is the clear
+standout (0.696)** — it still recognizes roughly 7 times out of 10 that two
+differently-worded patents are related, which lexical methods structurally cannot do.
+This is the strongest evidence in this project that semantic embeddings add real value
+over keyword search, not just marginally different rankings of the same information.
 
 ## Limitations
 
@@ -77,7 +114,8 @@ Paired bootstrap test, MiniLM vs. each alternative, on MRR:
 
 ```bash
 # from the PatentLens repo root, with venv activated
-python scripts/train.py          # checkpointed: safe to re-run, skips any already-completed step
+python scripts/train.py                    # checkpointed: safe to re-run, skips any already-completed step
+python scripts/citation_signal_test.py     # citation-vs-random-pair test, requires train.py's output
 streamlit run app.py
 ```
 

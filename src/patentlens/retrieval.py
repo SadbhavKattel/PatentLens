@@ -53,6 +53,11 @@ class TfidfRetriever:
         order = np.argsort(-sims)[:top_k]
         return order.tolist(), sims[order].tolist()
 
+    def score_pair(self, idx_a, idx_b):
+        # TfidfVectorizer L2-normalizes rows by default, so the dot product IS the
+        # cosine similarity -- no need for cosine_similarity()'s normalization overhead.
+        return float((self.matrix[idx_a] @ self.matrix[idx_b].T)[0, 0])
+
     def save(self, path):
         joblib.dump({'vectorizer': self.vectorizer, 'matrix': self.matrix, 'name': self.name}, path)
 
@@ -93,6 +98,12 @@ class LsaRetriever:
         sims = cosine_similarity(lsa_vec, self.lsa_matrix).ravel()
         order = np.argsort(-sims)[:top_k]
         return order.tolist(), sims[order].tolist()
+
+    def score_pair(self, idx_a, idx_b):
+        # LSA vectors aren't pre-normalized (unlike TF-IDF's), so compute cosine directly.
+        a, b = self.lsa_matrix[idx_a], self.lsa_matrix[idx_b]
+        denom = np.linalg.norm(a) * np.linalg.norm(b)
+        return float(np.dot(a, b) / denom) if denom > 0 else 0.0
 
     def save(self, path):
         joblib.dump({'svd': self.svd, 'lsa_matrix': self.lsa_matrix, 'name': self.name}, path)
@@ -175,6 +186,15 @@ class Bm25Retriever:
         order = np.argsort(-scores)[:top_k]
         return order.tolist(), scores[order].tolist()
 
+    def score_pair(self, idx_a, idx_b):
+        # Avoids _score_from_vector's full sparse matvec against every document -- only
+        # touches idx_a's own (typically ~30-80) term columns of idx_b's bm25_matrix row.
+        term_indices = self.term_counts[idx_a].indices
+        if len(term_indices) == 0:
+            return 0.0
+        row = self.bm25_matrix[idx_b, term_indices]
+        return float(row.sum())
+
     def save(self, path):
         joblib.dump({
             'vectorizer': self.vectorizer,
@@ -245,6 +265,10 @@ class EmbeddingRetriever:
         vec = model.encode([text], convert_to_numpy=True, normalize_embeddings=True).astype('float32')
         scores, idxs = self.index.search(vec, top_k)
         return idxs[0].tolist(), scores[0].tolist()
+
+    def score_pair(self, idx_a, idx_b):
+        # Embeddings are L2-normalized, so the dot product is the cosine similarity.
+        return float(np.dot(self.embeddings[idx_a], self.embeddings[idx_b]))
 
     def save(self, dirpath):
         import faiss
