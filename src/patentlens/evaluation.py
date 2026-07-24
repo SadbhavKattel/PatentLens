@@ -71,6 +71,25 @@ def bootstrap_ci(values, n_boot=2000, ci=0.95, seed=42):
     return float(lo), float(hi)
 
 
+def sample_ground_truth(ground_truth: dict, max_queries=3000, seed=42):
+    """Subsample ground-truth queries when there are more than max_queries.
+
+    TF-IDF/BM25 have no sublinear index -- ranking one query means scanning the whole
+    corpus, so evaluating one at a time in a Python loop is O(queries x corpus_size).
+    That's fine at a few hundred queries but becomes impractical in the tens of thousands
+    (e.g. ~45k ground-truth queries on a 100k-patent corpus took ~50 minutes for TF-IDF
+    alone). A few thousand queries already gives far tighter confidence intervals than
+    the original 127-query evaluation ever had, so capping here trades a small amount of
+    additional precision for evaluation that finishes in minutes instead of hours.
+    """
+    if len(ground_truth) <= max_queries:
+        return ground_truth
+    rng = np.random.default_rng(seed)
+    keys = np.array(list(ground_truth.keys()))
+    sampled_keys = rng.choice(keys, size=max_queries, replace=False)
+    return {k: ground_truth[k] for k in sampled_keys}
+
+
 def evaluate_retriever(rank_fn, ground_truth, k_values=(5, 10, 20), max_rank_pool=50):
     """Evaluate a retriever against citation ground truth.
 

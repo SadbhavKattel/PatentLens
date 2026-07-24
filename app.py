@@ -34,19 +34,24 @@ def load_everything():
     bm25 = retrieval.Bm25Retriever.load(MODELS_DIR / "bm25.joblib")
     lsa = retrieval.LsaRetriever.load(MODELS_DIR / "lsa.joblib", tfidf)
     minilm = retrieval.EmbeddingRetriever.load(MODELS_DIR / "minilm")
-    patentsberta = retrieval.EmbeddingRetriever.load(MODELS_DIR / "patentsberta")
-    hybrid = retrieval.HybridRetriever(
-        [bm25, patentsberta], weights=[1.0, 1.0], name="Hybrid (BM25 + PatentSBERTa)"
-    )
 
     retrievers = {
         "TF-IDF": tfidf,
         "BM25": bm25,
         "LSA": lsa,
         "MiniLM": minilm,
-        "PatentSBERTa": patentsberta,
-        hybrid.name: hybrid,
     }
+
+    # PatentSBERTa/Hybrid are optional -- not every training run includes them (the slow
+    # step on large corpora), so only wire them in when their artifacts actually exist.
+    patentsberta_dir = MODELS_DIR / "patentsberta"
+    if patentsberta_dir.exists():
+        patentsberta = retrieval.EmbeddingRetriever.load(patentsberta_dir)
+        hybrid = retrieval.HybridRetriever(
+            [bm25, patentsberta], weights=[1.0, 1.0], name="Hybrid (BM25 + PatentSBERTa)"
+        )
+        retrievers["PatentSBERTa"] = patentsberta
+        retrievers[hybrid.name] = hybrid
 
     metrics_summary = pd.read_csv(MODELS_DIR / "metrics_summary.csv")
     metrics_pivot = pd.read_csv(MODELS_DIR / "metrics_pivot.csv", index_col=0)

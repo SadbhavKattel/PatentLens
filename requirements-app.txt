@@ -3,7 +3,6 @@
 # (requirements.txt is a raw `pip freeze` snapshot in UTF-16 and shouldn't be hand-edited.)
 
 faiss-cpu
-rank_bm25
 nltk
 streamlit
 altair
