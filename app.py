@@ -25,49 +25,58 @@ from patentlens import cleaning, retrieval  # noqa: E402
 
 MODELS_DIR = PROJECT_ROOT / "models"
 
-st.set_page_config(page_title="PatentLens", page_icon="🔍", layout="centered")
+st.set_page_config(page_title="PatentLens", layout="centered")
 
 st.markdown(
     """
     <style>
+    div[data-testid="stAppViewContainer"], .stMarkdown, .stTextArea textarea,
+    .result-title, .result-meta, .result-snippet {
+        font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    h1 { font-weight: 600 !important; letter-spacing: -0.01em; }
     .result-card {
         display: flex;
         align-items: stretch;
         gap: 14px;
         background: var(--background-color, #ffffff);
-        border: 1px solid rgba(128,128,128,0.25);
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        border: 1px solid rgba(128,128,128,0.3);
+        border-radius: 4px;
+        padding: 13px 15px;
+        margin-bottom: 10px;
     }
     .result-body { flex: 1; min-width: 0; }
     .result-title {
         font-weight: 600;
-        font-size: 0.98rem;
+        font-size: 0.95rem;
         margin-bottom: 3px;
         line-height: 1.35;
     }
     .result-title a { text-decoration: none; color: inherit; }
     .result-title a:hover { text-decoration: underline; }
-    .result-meta { font-size: 0.78rem; opacity: 0.65; margin-bottom: 6px; }
-    .result-snippet { font-size: 0.85rem; opacity: 0.85; line-height: 1.4; }
+    .result-meta {
+        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+        font-size: 0.72rem;
+        opacity: 0.6;
+        margin-bottom: 6px;
+    }
+    .result-snippet { font-size: 0.83rem; opacity: 0.8; line-height: 1.42; }
     .score-badge {
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        min-width: 66px;
-        border-radius: 8px;
-        font-weight: 700;
+        min-width: 64px;
+        border-radius: 3px;
         padding: 6px 8px;
+        font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
     }
-    .score-badge .score-val { font-size: 1.05rem; line-height: 1.1; }
-    .score-badge .score-tag { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.04em; opacity: 0.85; margin-top: 2px; }
-    .badge-green { background: #d7f2e3; color: #14532d; }
-    .badge-yellow { background: #fdf0c8; color: #7a5c00; }
-    .badge-red { background: #fbdcd8; color: #8a2c1f; }
+    .score-badge .score-val { font-size: 0.98rem; font-weight: 700; line-height: 1.1; }
+    .score-badge .score-tag { font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; margin-top: 3px; }
+    .badge-green { background: #1a7f37; color: #ffffff; }
+    .badge-yellow { background: #9a6700; color: #ffffff; }
+    .badge-red { background: #b42318; color: #ffffff; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -175,7 +184,7 @@ def render_results(df, idxs, scores):
 
 
 def main():
-    st.title("🔍 PatentLens")
+    st.title("PatentLens")
 
     if not (MODELS_DIR / "patents.parquet").exists():
         st.error(
