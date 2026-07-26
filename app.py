@@ -39,7 +39,7 @@ st.markdown(
         display: flex;
         align-items: stretch;
         gap: 14px;
-        background: var(--background-color, #ffffff);
+        background: #ffffff;
         border: 1px solid rgba(128,128,128,0.3);
         border-radius: 4px;
         padding: 13px 15px;
@@ -51,16 +51,17 @@ st.markdown(
         font-size: 0.95rem;
         margin-bottom: 3px;
         line-height: 1.35;
+        color: #14171f;
     }
-    .result-title a { text-decoration: none; color: inherit; }
+    .result-title a { text-decoration: none; color: #14171f; }
     .result-title a:hover { text-decoration: underline; }
     .result-meta {
         font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
         font-size: 0.72rem;
-        opacity: 0.6;
+        color: #5b6472;
         margin-bottom: 6px;
     }
-    .result-snippet { font-size: 0.83rem; opacity: 0.8; line-height: 1.42; }
+    .result-snippet { font-size: 0.83rem; color: #3a3f4b; line-height: 1.42; }
     .score-badge {
         flex-shrink: 0;
         display: flex;
