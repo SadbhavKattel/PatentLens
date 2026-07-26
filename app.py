@@ -112,7 +112,40 @@ def load_everything():
         retrievers[hybrid.name] = hybrid
 
     stop_words = cleaning.get_stopwords()
-    return df, retrievers, stop_words
+    thresholds = load_score_thresholds()
+    return df, retrievers, stop_words, thresholds
+
+
+def load_score_thresholds():
+    """Per-model score cutoffs for the STRONG/MODERATE/WEAK badge, calibrated from
+    scripts/product_metrics.py's precision-recall sweep against real patent citations --
+    not an arbitrary cutoff, and not relative to whatever else is in the current result
+    set. A given score means the same thing for a given model every time, regardless of
+    what else the search returned (min-max-normalizing within one result set, the
+    previous approach, could paint two nearly-identical scores as STRONG and WEAK just
+    because they happened to be the top and bottom of a tightly-clustered batch).
+
+    MODERATE starts at the model's best-F1 operating point (the threshold that best
+    balances precision/recall for flagging "related"). STRONG starts where precision
+    against real citations reaches ~90% -- i.e. results this model itself has shown are
+    trustworthy, not a guess.
+    """
+    best_path = MODELS_DIR / "product_threshold.csv"
+    curve_path = MODELS_DIR / "product_threshold_curve.csv"
+    if not (best_path.exists() and curve_path.exists()):
+        return {}
+
+    best_df = pd.read_csv(best_path)
+    curve_df = pd.read_csv(curve_path)
+    thresholds = {}
+    for _, row in best_df.iterrows():
+        model = row["model"]
+        moderate = float(row["best_threshold"])
+        sub = curve_df[curve_df["model"] == model]
+        high_precision = sub[sub["precision"] >= 0.9]
+        strong = float(high_precision["threshold"].min()) if len(high_precision) else float(sub["threshold"].max())
+        thresholds[model] = (moderate, strong)
+    return thresholds
 
 
 def google_patents_url(publication_number: str) -> str:
@@ -129,31 +162,24 @@ def _authors_label(row) -> str:
     return label
 
 
-def _badge_class(normalized_score: float) -> tuple:
-    if normalized_score >= 0.66:
+def _badge_class(score: float, calibration) -> tuple:
+    if calibration is None:
+        # No calibration data for this model (e.g. product_metrics.py hasn't been run,
+        # or this is an optional model like PatentSBERTa it doesn't cover) -- fall back to
+        # rank order within this result set rather than showing a meaningless color.
+        return "badge-yellow", "N/A"
+    moderate, strong = calibration
+    if score >= strong:
         return "badge-green", "STRONG"
-    if normalized_score >= 0.33:
+    if score >= moderate:
         return "badge-yellow", "MODERATE"
     return "badge-red", "WEAK"
 
 
-def _normalize_scores(scores):
-    # Similarity scales aren't comparable across models (BM25 is unbounded, cosine models
-    # are ~0-1), so color-coding is relative to THIS result set, not an absolute cutoff --
-    # it answers "which of these top-k are the strongest matches," not "is 0.4 good."
-    if not scores:
-        return []
-    lo, hi = min(scores), max(scores)
-    if hi - lo < 1e-9:
-        return [1.0 for _ in scores]
-    return [(s - lo) / (hi - lo) for s in scores]
-
-
-def render_results(df, idxs, scores):
-    normalized = _normalize_scores(scores)
-    for idx, score, norm in zip(idxs, scores, normalized):
+def render_results(df, idxs, scores, calibration):
+    for idx, score in zip(idxs, scores):
         row = df.loc[idx]
-        badge_class, badge_tag = _badge_class(norm)
+        badge_class, badge_tag = _badge_class(score, calibration)
 
         title = html.escape(row["title"])
         url = google_patents_url(row["publication_number"])
@@ -194,7 +220,7 @@ def main():
         )
         return
 
-    df, retrievers, stop_words = load_everything()
+    df, retrievers, stop_words, thresholds = load_everything()
 
     with st.sidebar:
         st.subheader("Settings")
@@ -224,7 +250,7 @@ def main():
         st.info("No similar patents found.")
         return
 
-    render_results(df, idxs, scores)
+    render_results(df, idxs, scores, thresholds.get(model_name))
 
 
 if __name__ == "__main__":
