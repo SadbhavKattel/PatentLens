@@ -1,0 +1,5 @@
+model,artifact_size_mb,embedding_dims
+TF-IDF,46.1,
+BM25,82.6,
+LSA,84.0,100.0
+MiniLM,307.2,384.0

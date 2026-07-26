@@ -1,0 +1,5 @@
+model,best_threshold,precision_at_best,recall_at_best,f1_at_best
+TF-IDF,0.0213,0.7075,0.7897,0.7464
+BM25,6.9756,0.7256,0.7618,0.7432
+LSA,0.1134,0.7108,0.7934,0.7498
+MiniLM,0.338,0.7621,0.8001,0.7807

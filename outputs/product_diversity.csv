@@ -1,0 +1,5 @@
+model,avg_pairwise_similarity_in_top10
+TF-IDF,0.4985
+BM25,50.7849
+LSA,0.7864
+MiniLM,0.6906

@@ -1,16 +1,18 @@
-"""PatentLens demo: patent similarity search across TF-IDF, BM25, LSA, MiniLM,
-PatentSBERTa, and a BM25+PatentSBERTa hybrid, plus a model-comparison dashboard.
+"""PatentLens: free-text patent similarity search.
+
+Type an idea, pick a model in the sidebar, get back the most similar existing patents
+as a notification-style list with a color-coded similarity badge.
 
 Run with:
     streamlit run app.py
 
-Expects artifacts produced by notebooks/02_model_training.ipynb in ./models/.
+Expects artifacts produced by scripts/train.py in ./models/.
 """
 
+import html
 import sys
 from pathlib import Path
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -23,7 +25,53 @@ from patentlens import cleaning, retrieval  # noqa: E402
 
 MODELS_DIR = PROJECT_ROOT / "models"
 
-st.set_page_config(page_title="PatentLens", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="PatentLens", page_icon="🔍", layout="centered")
+
+st.markdown(
+    """
+    <style>
+    .result-card {
+        display: flex;
+        align-items: stretch;
+        gap: 14px;
+        background: var(--background-color, #ffffff);
+        border: 1px solid rgba(128,128,128,0.25);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .result-body { flex: 1; min-width: 0; }
+    .result-title {
+        font-weight: 600;
+        font-size: 0.98rem;
+        margin-bottom: 3px;
+        line-height: 1.35;
+    }
+    .result-title a { text-decoration: none; color: inherit; }
+    .result-title a:hover { text-decoration: underline; }
+    .result-meta { font-size: 0.78rem; opacity: 0.65; margin-bottom: 6px; }
+    .result-snippet { font-size: 0.85rem; opacity: 0.85; line-height: 1.4; }
+    .score-badge {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 66px;
+        border-radius: 8px;
+        font-weight: 700;
+        padding: 6px 8px;
+    }
+    .score-badge .score-val { font-size: 1.05rem; line-height: 1.1; }
+    .score-badge .score-tag { font-size: 0.62rem; font-weight: 600; letter-spacing: 0.04em; opacity: 0.85; margin-top: 2px; }
+    .badge-green { background: #d7f2e3; color: #14532d; }
+    .badge-yellow { background: #fdf0c8; color: #7a5c00; }
+    .badge-red { background: #fbdcd8; color: #8a2c1f; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_resource(show_spinner="Loading models and patent corpus...")
@@ -53,11 +101,8 @@ def load_everything():
         retrievers["PatentSBERTa"] = patentsberta
         retrievers[hybrid.name] = hybrid
 
-    metrics_summary = pd.read_csv(MODELS_DIR / "metrics_summary.csv")
-    metrics_pivot = pd.read_csv(MODELS_DIR / "metrics_pivot.csv", index_col=0)
     stop_words = cleaning.get_stopwords()
-
-    return df, retrievers, metrics_summary, metrics_pivot, stop_words
+    return df, retrievers, stop_words
 
 
 def google_patents_url(publication_number: str) -> str:
@@ -67,171 +112,109 @@ def google_patents_url(publication_number: str) -> str:
 def _authors_label(row) -> str:
     inventors = row["inventors"] if isinstance(row["inventors"], list) else []
     if not inventors:
-        return "Inventors not available"
+        return None
     label = ", ".join(inventors[:3])
     if len(inventors) > 3:
         label += f" +{len(inventors) - 3} more"
     return label
 
 
-def render_result_button(rank, row, score):
-    authors = _authors_label(row)
-    button_label = f"#{rank}  {row['title']}  —  {authors}  ·  similarity {score:.3f}"
-    st.link_button(
-        button_label,
-        google_patents_url(row["publication_number"]),
-        use_container_width=True,
-    )
-    assignees = row["assignees"] if isinstance(row["assignees"], list) else []
-    assignee_str = assignees[0] if assignees else None
-    caption_parts = [row["publication_number"], f"filed {row['filing_date']}"]
-    if assignee_str:
-        caption_parts.append(f"assignee: {assignee_str}")
-    st.caption(" · ".join(caption_parts))
-    abstract = row["abstract"]
-    st.caption(abstract[:280] + ("..." if len(abstract) > 280 else ""))
+def _badge_class(normalized_score: float) -> tuple:
+    if normalized_score >= 0.66:
+        return "badge-green", "STRONG"
+    if normalized_score >= 0.33:
+        return "badge-yellow", "MODERATE"
+    return "badge-red", "WEAK"
 
 
-def search_tab(df, retrievers, stop_words):
-    left, right = st.columns([1, 2])
-    with left:
-        model_name = st.selectbox("Model", list(retrievers.keys()), index=len(retrievers) - 1)
-        top_k = st.slider("Number of results", min_value=3, max_value=20, value=5)
-        query_mode = st.radio("Query type", ["Pick an existing patent", "Free-text description"])
-
-    retriever = retrievers[model_name]
-
-    with left:
-        if query_mode == "Pick an existing patent":
-            search_text = st.text_input("Filter by title keyword")
-            options = df
-            if search_text:
-                options = df[df["title"].str.contains(search_text, case=False, na=False)]
-            options = options.head(200)
-            if options.empty:
-                st.warning("No patents match that filter.")
-                return
-            labels = options.apply(
-                lambda r: f"{r['publication_number']} — {r['title'][:70]}", axis=1
-            )
-            choice = st.selectbox("Patent", labels)
-            query_idx = options.index[list(labels).index(choice)]
-            run = st.button("Find similar patents", type="primary")
-        else:
-            free_text = st.text_area(
-                "Describe an invention",
-                placeholder="e.g. a neural network that learns to control robotic arms using reinforcement learning...",
-                height=140,
-            )
-            run = st.button("Search", type="primary")
-
-    with right:
-        if not run:
-            st.info("Configure a query on the left, then run the search.")
-            return
-
-        if query_mode == "Pick an existing patent":
-            st.subheader("Query patent")
-            q_row = df.loc[query_idx]
-            st.markdown(f"**{q_row['title']}**")
-            st.caption(f"{q_row['publication_number']} · {_authors_label(q_row)}")
-            st.write(q_row["abstract"][:400])
-            st.divider()
-            idxs, scores = retriever.rank(query_idx, top_k=top_k)
-        else:
-            if not free_text.strip():
-                st.warning("Enter a description first.")
-                return
-            cleaned = cleaning.clean_text(free_text, stop_words)
-            idxs, scores = retriever.rank_text(cleaned, top_k=top_k)
-
-        st.subheader(f"Top {len(idxs)} similar patents — {model_name}")
-        for rank, (idx, score) in enumerate(zip(idxs, scores), start=1):
-            render_result_button(rank, df.loc[idx], score)
+def _normalize_scores(scores):
+    # Similarity scales aren't comparable across models (BM25 is unbounded, cosine models
+    # are ~0-1), so color-coding is relative to THIS result set, not an absolute cutoff --
+    # it answers "which of these top-k are the strongest matches," not "is 0.4 good."
+    if not scores:
+        return []
+    lo, hi = min(scores), max(scores)
+    if hi - lo < 1e-9:
+        return [1.0 for _ in scores]
+    return [(s - lo) / (hi - lo) for s in scores]
 
 
-def comparison_tab(metrics_summary, metrics_pivot):
-    st.subheader("Retrieval quality vs. real patent citations")
-    st.caption(
-        "Ground truth: for each patent, whichever of its cited patents also fall inside "
-        "the sampled corpus. Recall@k = fraction of true citations found in the top k "
-        "results. Precision@k = fraction of the top k that are true citations. MRR = how "
-        "close the first true citation lands to rank 1. NDCG@k additionally rewards ranking "
-        "true citations higher, not just including them."
-    )
+def render_results(df, idxs, scores):
+    normalized = _normalize_scores(scores)
+    for idx, score, norm in zip(idxs, scores, normalized):
+        row = df.loc[idx]
+        badge_class, badge_tag = _badge_class(norm)
 
-    st.dataframe(metrics_pivot, use_container_width=True)
+        title = html.escape(row["title"])
+        url = google_patents_url(row["publication_number"])
+        authors = _authors_label(row)
+        meta_parts = [html.escape(row["publication_number"]), f"filed {row['filing_date']}"]
+        if authors:
+            meta_parts.append(html.escape(authors))
+        meta = " · ".join(meta_parts)
 
-    metric_family = st.selectbox("Metric", ["Recall", "Precision", "NDCG", "MRR"])
-    if metric_family == "MRR":
-        chart_df = metrics_summary[metrics_summary["metric"] == "MRR"]
-        chart = (
-            alt.Chart(chart_df)
-            .mark_bar()
-            .encode(
-                x=alt.X("model:N", sort="-y", title=None),
-                y=alt.Y("mean:Q", title="MRR"),
-                tooltip=["model", "mean", "ci_low", "ci_high"],
-                color=alt.Color("model:N", legend=None),
-            )
+        abstract = row["abstract"]
+        snippet = html.escape(abstract[:220] + ("..." if len(abstract) > 220 else ""))
+
+        st.markdown(
+            f"""
+            <div class="result-card">
+                <div class="result-body">
+                    <div class="result-title"><a href="{url}" target="_blank">{title}</a></div>
+                    <div class="result-meta">{meta}</div>
+                    <div class="result-snippet">{snippet}</div>
+                </div>
+                <div class="score-badge {badge_class}">
+                    <span class="score-val">{score:.3f}</span>
+                    <span class="score-tag">{badge_tag}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        error_bars = (
-            alt.Chart(chart_df)
-            .mark_errorbar()
-            .encode(x="model:N", y="ci_low:Q", y2="ci_high:Q")
-        )
-        st.altair_chart(chart + error_bars, use_container_width=True)
-    else:
-        chart_df = metrics_summary[metrics_summary["metric"].str.startswith(metric_family + "@")]
-        chart = (
-            alt.Chart(chart_df)
-            .mark_bar()
-            .encode(
-                x=alt.X("metric:N", title=None, sort=None),
-                y=alt.Y("mean:Q", title=f"{metric_family}@k"),
-                color=alt.Color("model:N"),
-                xOffset="model:N",
-                tooltip=["model", "metric", "mean", "ci_low", "ci_high"],
-            )
-        )
-        st.altair_chart(chart, use_container_width=True)
-
-    st.caption(
-        "Error bars/tooltips show 95% bootstrap confidence intervals — with a few hundred "
-        "citation pairs, point estimates alone can be misleading."
-    )
-
-    sig_path = MODELS_DIR / "significance_tests.csv"
-    if sig_path.exists():
-        st.divider()
-        st.subheader("Is the top model actually better, or just lucky?")
-        st.caption(
-            "Paired bootstrap test on MRR between the best model and each runner-up, "
-            "computed on the same queries. p < 0.05 means the gap is unlikely to be noise."
-        )
-        st.dataframe(pd.read_csv(sig_path), use_container_width=True)
 
 
 def main():
     st.title("🔍 PatentLens")
-    st.caption("Patent similarity search across lexical, latent, and semantic retrieval models.")
 
     if not (MODELS_DIR / "patents.parquet").exists():
         st.error(
             f"No trained artifacts found in {MODELS_DIR}. Run "
-            "notebooks/02_model_training.ipynb first — its last cell saves everything this "
-            "app needs."
+            "scripts/train.py first -- it saves everything this app needs."
         )
         return
 
-    df, retrievers, metrics_summary, metrics_pivot, stop_words = load_everything()
-    st.caption(f"Corpus: {len(df):,} patents")
+    df, retrievers, stop_words = load_everything()
 
-    tab1, tab2 = st.tabs(["Search", "Model comparison"])
-    with tab1:
-        search_tab(df, retrievers, stop_words)
-    with tab2:
-        comparison_tab(metrics_summary, metrics_pivot)
+    with st.sidebar:
+        st.subheader("Settings")
+        model_name = st.selectbox("Model", list(retrievers.keys()))
+        top_k = st.slider("Number of results", min_value=3, max_value=20, value=8)
+        st.caption(f"Corpus: {len(df):,} patents")
+
+    idea = st.text_area(
+        "Write your idea here",
+        placeholder="e.g. a neural network that learns to control robotic arms using reinforcement learning...",
+        height=130,
+        label_visibility="visible",
+    )
+    search = st.button("Search", type="primary")
+
+    if not search:
+        return
+    if not idea.strip():
+        st.warning("Describe an idea first.")
+        return
+
+    retriever = retrievers[model_name]
+    cleaned = cleaning.clean_text(idea, stop_words)
+    idxs, scores = retriever.rank_text(cleaned, top_k=top_k)
+
+    if not idxs:
+        st.info("No similar patents found.")
+        return
+
+    render_results(df, idxs, scores)
 
 
 if __name__ == "__main__":

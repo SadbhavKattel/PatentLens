@@ -103,6 +103,70 @@ differently-worded patents are related, which lexical methods structurally canno
 This is the strongest evidence in this project that semantic embeddings add real value
 over keyword search, not just marginally different rankings of the same information.
 
+## Product metrics: what matters beyond ranking quality
+
+Recall/MRR/NDCG and the citation-signal test answer "does it work." These answer "is it
+usable" — the questions that actually decide whether a model belongs in a real tool.
+
+**Latency** (mean time for one free-text search, 100 sampled queries):
+
+| Model | Mean | p95 |
+|---|---|---|
+| BM25 | 26ms | 34ms |
+| MiniLM | 29ms | 34ms |
+| LSA | 118ms | 199ms |
+| TF-IDF | 119ms | 149ms |
+
+![Latency comparison](outputs/product_latency.png)
+
+BM25 and MiniLM are both fast enough for interactive use. TF-IDF and LSA are ~4x slower —
+not because the underlying math is slower, but because `retrieval.py`'s TF-IDF/LSA
+`rank()` still does a full `argsort` over all 100,000 scores per query rather than a
+partial top-k selection (the same optimization gap noted in Limitations previously).
+Real-world impact today: still well under 200ms, fine for this use case, but worth fixing
+before scaling further.
+
+**Where should the "potential overlap" threshold actually be set?** Extends your
+collaborator's TF-IDF-only threshold audit to all four models — for each, sweeps
+similarity thresholds and finds the best precision/recall tradeoff (best F1):
+
+| Model | Best threshold | Precision | Recall | F1 |
+|---|---|---|---|---|
+| **MiniLM** | 0.338 | 0.762 | 0.800 | **0.781** |
+| LSA | 0.113 | 0.711 | 0.793 | 0.750 |
+| TF-IDF | 0.021 | 0.708 | 0.790 | 0.746 |
+| BM25 | 6.976 | 0.726 | 0.762 | 0.743 |
+
+![Precision-recall curve](outputs/product_threshold_curve.png)
+
+MiniLM's curve sits above every other model's across the whole range, not just at one
+point — confirms it's the better choice for this specific product decision (flagging
+potential overlap), not an artifact of one threshold pick. Note the current app threshold
+of 0.30 (flagged as miscalibrated for TF-IDF elsewhere in this doc) happens to land close
+to MiniLM's own optimum (0.338) — that coincidence doesn't hold for the other models,
+which is exactly why the threshold should be set per-model, not copied across.
+
+**Are the top-10 results actually 10 different patents?** Average similarity between
+results within the same top-10 list — high means the model is returning near-duplicates
+of each other rather than a genuinely varied set of related patents:
+
+![Result diversity](outputs/product_diversity.png)
+
+**LSA's results are the most redundant (0.79 avg internal similarity)** — consistent with
+it being the weakest model elsewhere in this doc: compressing to 100 dimensions collapses
+many distinct patents into the same neighborhood of latent space, so its top-10 tends to
+be one cluster rather than 10 distinct ideas. TF-IDF is the most varied (0.50) — exact
+keyword matching, when it hits at all, tends to hit genuinely different documents that
+happen to share specific rare terms. MiniLM is in between (0.69). (BM25 omitted — its raw
+score isn't on a 0-1 scale, so it isn't numerically comparable here.)
+
+**Storage cost** (100,000-patent corpus):
+
+![Footprint comparison](outputs/product_footprint.png)
+
+MiniLM needs ~6.7x the disk of TF-IDF (307MB vs. 46MB) for its embeddings + FAISS index.
+Worth knowing before scaling to millions of patents, though 307MB is trivial at 100k.
+
 ## Limitations
 
 - **Evaluated on a 10,000-query sample, not the full 44,985 ground-truth queries** — a pragmatic tradeoff for training-run turnaround time, not a data limitation. 10,000 is already ~65x the pilot's entire ground truth (147 pairs), so this is a substantial statistical-power upgrade, not a step down.
@@ -116,6 +180,8 @@ over keyword search, not just marginally different rankings of the same informat
 # from the PatentLens repo root, with venv activated
 python scripts/train.py                    # checkpointed: safe to re-run, skips any already-completed step
 python scripts/citation_signal_test.py     # citation-vs-random-pair test, requires train.py's output
+python scripts/product_metrics.py          # latency, threshold sweep, diversity, footprint
+python scripts/product_metrics_charts.py   # charts for the above
 streamlit run app.py
 ```
 
