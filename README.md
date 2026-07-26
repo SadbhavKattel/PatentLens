@@ -1,33 +1,197 @@
 # PatentLens
 
-A TF-IDF patent similarity engine for AI/ML patents, with a full evaluation of how well it actually works. *AI4ALL Ignite project.*
+PatentLens is a patent similarity search engine that uses **Natural Language Processing (NLP)** to identify existing patents that are most similar to a user's invention description. The project focuses on **AI and Machine Learning patents (CPC G06N3)** and demonstrates how text retrieval techniques can be used as a lightweight **prior-art search tool**.
 
-Given a patent — or a brand-new draft idea — PatentLens finds the most similar existing patents and flags potential overlap, acting as a **first-pass prior-art screen**.
+Given a patent—or a brand-new invention idea—PatentLens retrieves and ranks the most relevant existing patents using **TF-IDF**, **Cosine Similarity**, and **Nearest Neighbor Search**.
 
-## Data
+---
 
-- **`patents_g06n3_wide.csv`** — 3,000 patents in CPC class **G06N3** (neural networks / machine learning).
-- Fields: `publication_number`, `filing_date`, `publication_date`, `title`, `abstract`, `cpc_codes`, `cited_patents`.
+## Features
 
-## Repo layout
+- Search similar AI/ML patents from a USPTO patent corpus
+- TF-IDF vectorization for keyword-based retrieval
+- Cosine Similarity ranking
+- Retrieval evaluation using patent citation data
+- Exploratory Data Analysis (EDA)
+- Bias and fairness evaluation
+- Visualization of retrieval performance metrics
 
+---
+
+## Dataset
+
+**patents_g06n3_wide.csv**
+
+A curated dataset containing **3,000 U.S. patents** in CPC class **G06N3** (Artificial Intelligence / Neural Networks).
+
+Each patent contains:
+
+- publication_number
+- filing_date
+- publication_date
+- title
+- abstract
+- cpc_codes
+- cited_patents
+
+---
+
+## Repository Structure
+
+```text
+PatentLens/
+│
+├── .gitignore
+├── README.md
+├── RESULTS.md
+├── app.py
+├── patents_g06n3_wide.csv
+├── requirements.txt
+├── requirements-app.txt
+│
+├── notebooks/
+│   ├── 01_eda.ipynb                  # Exploratory Data Analysis
+│   ├── 02_model_training.ipynb       # Main training notebook
+│   ├── notebookS.ipynb
+│   └── patent_similarity_engine.ipynb
+│
+├── outputs/
+│   ├── eda_overview.png
+│   ├── mrr_comparison.png
+│   ├── ndcg_comparison.png
+│   ├── recall_comparison.png
+│   │
+│   └── week8/
+│       ├── metrics.md
+│       └── figures/
+│           ├── 1_retrieval_precision.png
+│           ├── 2_roc_citation_links.png
+│           ├── 3_threshold_audit.png
+│           └── 4_hubness_bias.png
+│
+├── scripts/
+│   └── train.py
+│
+└── src/
+    └── patentlens/
+        ├── __init__.py
+        ├── cleaning.py
+        ├── data_fetch.py
+        ├── evaluation.py
+        └── retrieval.py
 ```
-notebooks/
-  01_eda.ipynb                     # exploratory data analysis
-  patent_similarity_engine.ipynb   # the engine + full evaluation
-outputs/
-  eda_overview.png
-  week8/
-    metrics.md                     # evaluation write-up
-    figures/                       # evaluation charts
-patents_g06n3_wide.csv             # dataset
-requirements.txt
+
+---
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/PatentLens.git
+cd PatentLens
 ```
 
-## Running it
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Open `notebooks/patent_similarity_engine.ipynb` and run top to bottom. (Sections 1–4 build the engine; 5–8 evaluate and audit it.)
+For the web application:
+
+```bash
+pip install -r requirements-app.txt
+```
+
+---
+
+## Running the Project
+
+### Exploratory Data Analysis
+
+Run:
+
+```
+notebooks/01_eda.ipynb
+```
+
+### Train and Evaluate the Model
+
+Run:
+
+```
+notebooks/02_model_training.ipynb
+```
+
+or execute:
+
+```bash
+python scripts/train.py
+```
+
+### Launch the Application
+
+```bash
+python app.py
+```
+
+---
+
+## Evaluation
+
+PatentLens evaluates retrieval quality using real patent citation relationships as ground truth.
+
+Metrics include:
+
+- Recall@K
+- Mean Reciprocal Rank (MRR)
+- Normalized Discounted Cumulative Gain (NDCG)
+- Precision
+- ROC Analysis
+
+Additional bias audits include:
+
+- Threshold sensitivity
+- Hubness bias analysis
+
+Evaluation figures are available in:
+
+```
+outputs/week8/figures/
+```
+
+and summary metrics can be found in:
+
+```
+RESULTS.md
+```
+
+---
+
+## Technologies Used
+
+- Python
+- Pandas
+- Scikit-learn
+- NumPy
+- SciPy
+- Matplotlib
+- Seaborn
+- Jupyter Notebook
+
+---
+
+## Future Improvements
+
+- Sentence Transformer embeddings
+- FAISS semantic search
+- Multi-CPC patent retrieval
+- International patent support
+- Explainable similarity highlighting
+
+---
+
+## Project
+
+Developed as part of the **AI4ALL Ignite Responsible AI Project**, demonstrating how NLP-based information retrieval can support transparent and accessible patent prior-art search.
