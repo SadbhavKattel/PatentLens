@@ -16,14 +16,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-PROJECT_ROOT = Path(__file__).parent
-SRC_PATH = PROJECT_ROOT / "src"
+SRC_PATH = Path(__file__).resolve().parent / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from patentlens import cleaning, retrieval  # noqa: E402
-
-MODELS_DIR = PROJECT_ROOT / "models"
+from patentlens import artifacts, cleaning, retrieval  # noqa: E402
+from patentlens.artifacts import MODELS_DIR  # noqa: E402
 
 st.set_page_config(page_title="PatentLens", layout="centered")
 
@@ -86,19 +84,8 @@ st.markdown(
 
 @st.cache_resource(show_spinner="Loading models and patent corpus...")
 def load_everything():
-    df = pd.read_parquet(MODELS_DIR / "patents.parquet")
-
-    tfidf = retrieval.TfidfRetriever.load(MODELS_DIR / "tfidf.joblib")
-    bm25 = retrieval.Bm25Retriever.load(MODELS_DIR / "bm25.joblib")
-    lsa = retrieval.LsaRetriever.load(MODELS_DIR / "lsa.joblib", tfidf)
-    minilm = retrieval.EmbeddingRetriever.load(MODELS_DIR / "minilm")
-
-    retrievers = {
-        "TF-IDF": tfidf,
-        "BM25": bm25,
-        "LSA": lsa,
-        "MiniLM": minilm,
-    }
+    df = artifacts.load_corpus()
+    retrievers = artifacts.load_retrievers()
 
     # PatentSBERTa/Hybrid are optional -- not every training run includes them (the slow
     # step on large corpora), so only wire them in when their artifacts actually exist.
@@ -106,7 +93,8 @@ def load_everything():
     if patentsberta_dir.exists():
         patentsberta = retrieval.EmbeddingRetriever.load(patentsberta_dir)
         hybrid = retrieval.HybridRetriever(
-            [bm25, patentsberta], weights=[1.0, 1.0], name="Hybrid (BM25 + PatentSBERTa)"
+            [retrievers["BM25"], patentsberta], weights=[1.0, 1.0],
+            name="Hybrid (BM25 + PatentSBERTa)",
         )
         retrievers["PatentSBERTa"] = patentsberta
         retrievers[hybrid.name] = hybrid

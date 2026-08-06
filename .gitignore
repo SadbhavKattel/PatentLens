@@ -1,21 +1,25 @@
+# Virtual environments
 venv/
 .venv/
 env/
-data/raw/*.csv
-data/raw/*.tsv
-data/raw/*.json
-data/processed/*.csv
-outputs/*.npy
-outputs/*.faiss
-outputs/*.index
+
+# Generated model artifacts and evaluation caches (rebuild with scripts/train.py)
 models/
 
-# rendered decks — not committed (keep figures + metrics.md)
-outputs/week8/*.html
-outputs/week8/*.pdf
-.ipynb_checkpoints/
+# Large fetched corpora. The 3,000-patent pilot CSV at data/ IS committed; anything
+# pulled via src/patentlens/data_fetch.py lands in data/raw/ and is not.
+data/raw/
+data/processed/
+
+# Python
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
+
+# OS / editor
 .DS_Store
 Thumbs.db
 .env

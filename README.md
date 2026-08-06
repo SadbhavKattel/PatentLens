@@ -1,204 +1,133 @@
 # PatentLens
 
-PatentLens is a patent similarity search engine that uses **Natural Language Processing (NLP)** to identify existing patents that are most similar to a user's invention description. The project focuses on **AI and Machine Learning patents (CPC G06N3)** and demonstrates how text retrieval techniques can be used as a lightweight **prior-art search tool**.
+PatentLens is a patent similarity search engine that uses **Natural Language Processing (NLP)** to identify existing patents most similar to a user's invention description. It focuses on **AI and Machine Learning patents (CPC G06N3)** and demonstrates how text retrieval can serve as a lightweight **prior-art screen**.
 
-Given a patent—or a brand-new invention idea—PatentLens retrieves and ranks the most relevant existing patents using **TF-IDF**, **Cosine Similarity**, and **Nearest Neighbor Search**.
+Describe an idea in free text and PatentLens ranks the most relevant existing patents, scoring each with a calibrated confidence badge. Four retrieval models are implemented and evaluated head-to-head against **real patent citations** as ground truth.
 
----
-
-## Features
-
-- Search similar AI/ML patents from a USPTO patent corpus
-- TF-IDF vectorization for keyword-based retrieval
-- Cosine Similarity ranking
-- Retrieval evaluation using patent citation data
-- Exploratory Data Analysis (EDA)
-- Bias and fairness evaluation
-- Visualization of retrieval performance metrics
+> **Scope:** a first-pass prior-art *screen*, never a legal novelty clearance.
 
 ---
 
-## Dataset
+## Results at a glance
 
-**patents_g06n3_wide.csv**
+Evaluated on a 100,000-patent corpus, 10,000 citation-linked query patents:
 
-A curated dataset containing **3,000 U.S. patents** in CPC class **G06N3** (Artificial Intelligence / Neural Networks).
+| Model | Recall@10 | NDCG@10 | MRR | Search latency |
+|---|---|---|---|---|
+| **MiniLM** | 0.1034 | 0.0814 | **0.1126** | 29 ms |
+| BM25 | 0.1020 | 0.0809 | 0.1106 | 26 ms |
+| TF-IDF | 0.0790 | 0.0660 | 0.0953 | 119 ms |
+| LSA | 0.0629 | 0.0553 | 0.0822 | 118 ms |
 
-Each patent contains:
+MiniLM and BM25 are **statistically tied** on ranking quality (paired bootstrap, p = 0.21) — but only MiniLM holds up on citation pairs with little shared vocabulary (AUC 0.696 vs. BM25's 0.517, i.e. chance).
 
-- publication_number
-- filing_date
-- publication_date
-- title
-- abstract
-- cpc_codes
-- cited_patents
+Full methodology, significance tests, bias audits, and every figure: **[RESULTS.md](RESULTS.md)**.
 
 ---
 
-## Repository Structure
+## Repository structure
 
 ```text
 PatentLens/
-│
-├── .gitignore
+├── app.py                  # Streamlit UI — free-text search over the corpus
+├── pyproject.toml          # package metadata; makes `pip install -e .` work
+├── requirements.txt        # direct dependencies
 ├── README.md
-├── RESULTS.md
-├── app.py
-├── patents_g06n3_wide.csv
-├── requirements.txt
-├── requirements-app.txt
+├── RESULTS.md              # evaluation findings, figures, limitations
+│
+├── data/
+│   └── patents_g06n3_wide.csv   # 3,000-patent pilot corpus (committed)
+│
+├── src/patentlens/         # the library — all reusable logic lives here
+│   ├── artifacts.py        # project paths + artifact loading, shared by every entry point
+│   ├── cleaning.py         # text normalization, stopwords, feature derivation
+│   ├── retrieval.py        # TF-IDF, BM25, LSA, embedding, and hybrid retrievers
+│   ├── evaluation.py       # Recall/Precision/NDCG/MRR, bootstrap CIs, significance tests
+│   └── data_fetch.py       # optional: pull a larger corpus from Google Patents BigQuery
+│
+├── scripts/                # entry points — thin orchestration over src/patentlens
+│   ├── train.py            # fit + evaluate all four models, write models/
+│   ├── citation_signal_test.py  # do cited pairs outscore random pairs?
+│   └── product_metrics.py  # latency, thresholds, diversity, footprint (+ charts)
 │
 ├── notebooks/
-│   ├── 01_eda.ipynb                  # Exploratory Data Analysis
-│   ├── 02_model_training.ipynb       # Main training notebook
-│   └── patent_similarity_engine.ipynb  # Prototype engine + week8 audit walkthrough
+│   └── 01_exploratory_analysis.ipynb
 │
-├── outputs/                          # committed charts and metric snapshots
-│   ├── eda_overview.png
-│   ├── mrr_comparison.png
-│   ├── ndcg_comparison.png
-│   ├── recall_comparison.png
-│   ├── citation_signal_*.png/.csv
-│   ├── product_*.png/.csv
-│   ├── metrics_summary.csv
-│   ├── metrics_pivot.csv
-│   ├── significance_tests.csv
-│   │
-│   └── week8/
-│       ├── metrics.md
-│       └── figures/
-│           ├── 1_retrieval_precision.png
-│           ├── 2_roc_citation_links.png
-│           ├── 3_threshold_audit.png
-│           └── 4_hubness_bias.png
-│
-├── scripts/
-│   ├── train.py                      # fit + evaluate all models, write models/
-│   ├── citation_signal_test.py       # cited-vs-random pair separation (AUC)
-│   ├── product_metrics.py            # latency, thresholds, diversity, footprint
-│   └── product_metrics_charts.py     # charts for product_metrics.py
-│
-└── src/
-    └── patentlens/
-        ├── __init__.py
-        ├── cleaning.py
-        ├── data_fetch.py
-        ├── evaluation.py
-        └── retrieval.py
+└── outputs/                # committed figures + metric snapshots used by RESULTS.md
 ```
+
+Two directories are **generated, not committed**: `models/` (fitted models and evaluation caches, rebuilt by `scripts/train.py`) and `data/raw/` (large corpora fetched via `data_fetch.py`).
 
 ---
 
-## Installation
-
-Clone the repository:
+## Setup
 
 ```bash
-git clone https://github.com/yourusername/PatentLens.git
+git clone https://github.com/SadbhavKattel/PatentLens.git
 cd PatentLens
-```
 
-Install dependencies:
-
-```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-For the web application:
-
-```bash
-pip install -r requirements-app.txt
-```
+Optionally `pip install -e .` to import `patentlens` from anywhere. It isn't required — `app.py` and every script add `src/` to the path themselves, so a plain clone runs as-is.
 
 ---
 
-## Running the Project
+## Usage
 
-### Exploratory Data Analysis
-
-Run:
-
-```
-notebooks/01_eda.ipynb
-```
-
-### Train and Evaluate the Model
-
-Run:
-
-```
-notebooks/02_model_training.ipynb
-```
-
-or execute:
+### 1. Train the models
 
 ```bash
 python scripts/train.py
 ```
 
-### Launch the Application
+Fits TF-IDF, BM25, LSA, and MiniLM, evaluates each against citation ground truth, and writes everything to `models/`. Uses `data/patents_g06n3_wide.csv` unless a larger corpus is present at `data/raw/patents_g06n3_wide_100k.csv`.
 
-The app is a Streamlit UI and reads the artifacts `scripts/train.py` writes to `models/`,
-so run the training step first.
+The pipeline is **checkpointed** — every step is saved as soon as it completes and skipped on re-run, so an interrupted run resumes where it stopped. Delete a file under `models/` to force that step to redo.
+
+### 2. Launch the app
 
 ```bash
 streamlit run app.py
 ```
 
----
+Requires `models/` from step 1. Pick a model in the sidebar, describe an idea, and get ranked patents with **STRONG / MODERATE / WEAK** badges. Those thresholds are calibrated per-model from the precision-recall sweep in `scripts/product_metrics.py` — run it to activate them, or badges show `N/A`.
 
-## Evaluation
+### 3. Reproduce the evaluation
 
-PatentLens evaluates retrieval quality using real patent citation relationships as ground truth.
-
-Metrics include:
-
-- Recall@K
-- Mean Reciprocal Rank (MRR)
-- Normalized Discounted Cumulative Gain (NDCG)
-- Precision
-- ROC Analysis
-
-Additional bias audits include:
-
-- Threshold sensitivity
-- Hubness bias analysis
-
-Evaluation figures are available in:
-
-```
-outputs/week8/figures/
+```bash
+python scripts/citation_signal_test.py         # cited-vs-random pair separation (AUC)
+python scripts/product_metrics.py              # latency, thresholds, diversity, footprint
+python scripts/product_metrics.py --charts-only  # redraw figures without re-benchmarking
 ```
 
-and summary metrics can be found in:
-
-```
-RESULTS.md
-```
+Each writes its CSVs to `models/` and its figures to `outputs/`.
 
 ---
 
-## Technologies Used
+## How it works
 
-- Python
-- Pandas
-- Scikit-learn
-- NumPy
-- SciPy
-- Matplotlib
-- Seaborn
-- Jupyter Notebook
+**Retrieval** — four models behind one interface (`fit` / `rank` / `rank_text` / `score_pair` / `save` / `load`), so they are directly comparable and interchangeable in the app:
+
+- **TF-IDF** — unigrams + bigrams, cosine similarity
+- **BM25** — probabilistic ranking, reimplemented as a precomputed sparse matrix (~20× faster than the `rank_bm25` library at 100k documents)
+- **LSA** — TF-IDF compressed via Truncated SVD
+- **MiniLM** — sentence embeddings (`all-MiniLM-L6-v2`) indexed with FAISS
+
+Similarity is always computed for **one query against the corpus**, never as a full n×n matrix — that is what lets the same code scale from 3,000 to 100,000+ patents.
+
+**Evaluation** — real patent citations as ground truth. Every metric carries a 95% bootstrap confidence interval, and model-vs-model claims go through a paired bootstrap test rather than a bar-chart eyeball.
 
 ---
 
-## Future Improvements
+## Limitations
 
-- Sentence Transformer embeddings
-- FAISS semantic search
-- Multi-CPC patent retrieval
-- International patent support
-- Explainable similarity highlighting
+- Citation-based ground truth is a **proxy** — patents are cited for legal reasons, not purely textual similarity.
+- Absolute scores are low (best MRR ≈ 0.11): the search space is large and no text-only model should be expected to approach perfect recall.
+- The corpus is a single CPC subclass (G06N3) and US-only.
+
+Discussed in full in [RESULTS.md](RESULTS.md).
 
 ---
 

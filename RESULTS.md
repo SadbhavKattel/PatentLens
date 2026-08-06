@@ -40,7 +40,7 @@ PatentSBERTa (a patent-claims-tuned embedding model) and a BM25+PatentSBERTa hyb
 | TF-IDF | 0.0790 | 0.0238 | 0.0660 | 0.0953 |
 | LSA | 0.0629 | 0.0192 | 0.0553 | 0.0822 |
 
-Full table (all k values): [`models/metrics_pivot.csv`](models/metrics_pivot.csv) (gitignored — regenerate by re-running, see below).
+Full table (all k values): [`outputs/metrics_pivot.csv`](outputs/metrics_pivot.csv) — a committed snapshot of this run. Re-running the pipeline rewrites it under `models/` (see Reproducing).
 
 ![Recall@k comparison](outputs/recall_comparison.png)
 ![NDCG@k comparison](outputs/ndcg_comparison.png)
@@ -177,12 +177,14 @@ Worth knowing before scaling to millions of patents, though 307MB is trivial at 
 ## Reproducing
 
 ```bash
-# from the PatentLens repo root, with venv activated
-python scripts/train.py                    # checkpointed: safe to re-run, skips any already-completed step
-python scripts/citation_signal_test.py     # citation-vs-random-pair test, requires train.py's output
-python scripts/product_metrics.py          # latency, threshold sweep, diversity, footprint
-python scripts/product_metrics_charts.py   # charts for the above
+# from the PatentLens repo root, with the virtualenv activated
+python scripts/train.py                 # checkpointed: safe to re-run, skips any already-completed step
+python scripts/citation_signal_test.py  # citation-vs-random-pair test, requires train.py's output
+python scripts/product_metrics.py       # latency, threshold sweep, diversity, footprint + their charts
 streamlit run app.py
 ```
+
+To redraw the product-metric figures without re-running the benchmarks:
+`python scripts/product_metrics.py --charts-only`.
 
 `scripts/train.py` saves each fitted model and each model's evaluation results to `models/` as soon as they're computed (not just at the end), so an interrupted run can be resumed by simply running it again — already-completed steps are loaded from disk instead of recomputed. Delete files under `models/` to force specific steps to redo.

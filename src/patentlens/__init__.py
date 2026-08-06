@@ -1,3 +1,3 @@
-from . import cleaning, retrieval, evaluation, data_fetch
+from . import artifacts, cleaning, data_fetch, evaluation, retrieval
 
-__all__ = ["cleaning", "retrieval", "evaluation", "data_fetch"]
+__all__ = ["artifacts", "cleaning", "data_fetch", "evaluation", "retrieval"]
