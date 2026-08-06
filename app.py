@@ -165,8 +165,8 @@ def _authors_label(row) -> str:
 def _badge_class(score: float, calibration) -> tuple:
     if calibration is None:
         # No calibration data for this model (e.g. product_metrics.py hasn't been run,
-        # or this is an optional model like PatentSBERTa it doesn't cover) -- fall back to
-        # rank order within this result set rather than showing a meaningless color.
+        # or this is an optional model like PatentSBERTa it doesn't cover) -- show a
+        # neutral badge rather than a color that would imply a confidence we can't back.
         return "badge-yellow", "N/A"
     moderate, strong = calibration
     if score >= strong:

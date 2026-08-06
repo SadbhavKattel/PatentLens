@@ -1,4 +1,5 @@
 venv/
+.venv/
 env/
 data/raw/*.csv
 data/raw/*.tsv
@@ -9,8 +10,7 @@ outputs/*.faiss
 outputs/*.index
 models/
 
-# presentation / rendered decks — not committed (keep figures + metrics.md)
-presentation/
+# rendered decks — not committed (keep figures + metrics.md)
 outputs/week8/*.html
 outputs/week8/*.pdf
 .ipynb_checkpoints/

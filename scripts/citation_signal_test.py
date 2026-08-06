@@ -87,7 +87,7 @@ def main():
     _plot_auc_bars(results_df)
     plt.savefig(PROJECT_ROOT / "outputs" / "citation_signal_auc.png", dpi=150)
 
-    log(f"Saved models/citation_signal_test.csv and outputs/citation_signal_*.png")
+    log("Saved models/citation_signal_test.csv and outputs/citation_signal_*.png")
     log("DONE")
 
 

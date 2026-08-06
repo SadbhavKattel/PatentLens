@@ -52,14 +52,18 @@ PatentLens/
 ├── notebooks/
 │   ├── 01_eda.ipynb                  # Exploratory Data Analysis
 │   ├── 02_model_training.ipynb       # Main training notebook
-│   ├── notebookS.ipynb
-│   └── patent_similarity_engine.ipynb
+│   └── patent_similarity_engine.ipynb  # Prototype engine + week8 audit walkthrough
 │
-├── outputs/
+├── outputs/                          # committed charts and metric snapshots
 │   ├── eda_overview.png
 │   ├── mrr_comparison.png
 │   ├── ndcg_comparison.png
 │   ├── recall_comparison.png
+│   ├── citation_signal_*.png/.csv
+│   ├── product_*.png/.csv
+│   ├── metrics_summary.csv
+│   ├── metrics_pivot.csv
+│   ├── significance_tests.csv
 │   │
 │   └── week8/
 │       ├── metrics.md
@@ -70,7 +74,10 @@ PatentLens/
 │           └── 4_hubness_bias.png
 │
 ├── scripts/
-│   └── train.py
+│   ├── train.py                      # fit + evaluate all models, write models/
+│   ├── citation_signal_test.py       # cited-vs-random pair separation (AUC)
+│   ├── product_metrics.py            # latency, thresholds, diversity, footprint
+│   └── product_metrics_charts.py     # charts for product_metrics.py
 │
 └── src/
     └── patentlens/
@@ -132,8 +139,11 @@ python scripts/train.py
 
 ### Launch the Application
 
+The app is a Streamlit UI and reads the artifacts `scripts/train.py` writes to `models/`,
+so run the training step first.
+
 ```bash
-python app.py
+streamlit run app.py
 ```
 
 ---

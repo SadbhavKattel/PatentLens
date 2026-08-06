@@ -14,7 +14,6 @@ Run from the repo root: `python scripts/train.py`
 """
 
 import json
-import shutil
 import sys
 import time
 from pathlib import Path
