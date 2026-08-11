@@ -10,8 +10,7 @@ of 100,000 US patents in CPC subclass **G06N3** (neural network architectures).
 
 > **Scope:** a first-pass prior-art *screen*, never a legal novelty clearance.
 
-<!-- TODO: replace with the real demo link -->
-📹 **[Watch the demo](DEMO_VIDEO_URL)** · 📊 **[Full evaluation report](docs/RESULTS.md)** · ⚙️ **[Setup and running](docs/SETUP.md)**
+📹 **[Watch the demo](https://drive.google.com/file/d/13LsTh2QYd1Lc040RNTuhv92l28DCclQo/view?usp=sharing)** · 📊 **[Full evaluation report](docs/RESULTS.md)** · ⚙️ **[Setup and running](docs/SETUP.md)**
 
 ---
 
@@ -143,14 +142,14 @@ Discussed in full in [docs/RESULTS.md](docs/RESULTS.md).
 
 ---
 
-## Contributors
+## Participants
 
 Built by a three-person team for the AI4ALL Ignite program:
 
-<!-- TODO: add Seemya's GitHub handle -->
+<!-- TODO: link Seemya's GitHub profile once the handle is known -->
 - **Mutawakil Rabiu** — [@Muta4ever](https://github.com/Muta4ever)
 - **Sadbhav Kattel** — [@SadbhavKattel](https://github.com/SadbhavKattel)
-- **Seemya Momin** — [@SEEMYA_GITHUB_HANDLE](https://github.com/SEEMYA_GITHUB_HANDLE)
+- **Seemya Momin**
 
 ---
 
