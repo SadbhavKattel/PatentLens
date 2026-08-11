@@ -46,6 +46,7 @@ PatentLens/
 │   └── data_fetch.py       # optional: pull a larger corpus from Google Patents BigQuery
 │
 ├── scripts/                # entry points — thin orchestration over src/patentlens
+│   ├── fetch_corpus.py     # optional: pull a larger corpus from BigQuery (costs quota)
 │   ├── train.py            # fit + evaluate all four models, write models/
 │   ├── citation_signal_test.py  # do cited pairs outscore random pairs?
 │   └── product_metrics.py  # latency, thresholds, diversity, footprint (+ charts)
@@ -57,6 +58,8 @@ PatentLens/
 ```
 
 Two directories are **generated, not committed**: `models/` (fitted models and evaluation caches, rebuilt by `scripts/train.py`) and `data/raw/` (large corpora fetched via `data_fetch.py`).
+
+**Nothing here ships pre-trained.** A fresh clone has no `models/` directory, and the app refuses to start without one — you build it locally in the Quick start below.
 
 ---
 
@@ -74,35 +77,90 @@ Optionally `pip install -e .` to import `patentlens` from anywhere. It isn't req
 
 ---
 
-## Usage
+## Quick start
 
-### 1. Train the models
-
-```bash
-python scripts/train.py
-```
-
-Fits TF-IDF, BM25, LSA, and MiniLM, evaluates each against citation ground truth, and writes everything to `models/`. Uses `data/patents_g06n3_wide.csv` unless a larger corpus is present at `data/raw/patents_g06n3_wide_100k.csv`.
-
-The pipeline is **checkpointed** — every step is saved as soon as it completes and skipped on re-run, so an interrupted run resumes where it stopped. Delete a file under `models/` to force that step to redo.
-
-### 2. Launch the app
+No Google Cloud account needed. This runs on the 3,000-patent pilot corpus committed at
+`data/patents_g06n3_wide.csv`.
 
 ```bash
+python scripts/train.py            # fit + evaluate all four models
+python scripts/product_metrics.py  # calibrate the result badges
 streamlit run app.py
 ```
 
-Requires `models/` from step 1. Pick a model in the sidebar, describe an idea, and get ranked patents with **STRONG / MODERATE / WEAK** badges. Those thresholds are calibrated per-model from the precision-recall sweep in `scripts/product_metrics.py` — run it to activate them, or badges show `N/A`.
+**Both scripts are required before the app is worth looking at:**
 
-### 3. Reproduce the evaluation
+| Step | Writes to `models/` | What breaks without it |
+|---|---|---|
+| `train.py` | `patents.parquet`, `tfidf.joblib`, `bm25.joblib`, `lsa.joblib`, `minilm/` | The app shows "No trained artifacts found" and stops. |
+| `product_metrics.py` | `product_threshold.csv`, `product_threshold_curve.csv` | The app runs, but **every badge reads `N/A`** — the confidence scoring is inert. |
+
+`train.py` is **checkpointed**: each step is saved the moment it completes and skipped on
+re-run, so an interrupted run resumes where it stopped. Delete a file under `models/` to
+force that step to redo.
+
+This path trains quickly, but it will **not** reproduce the numbers in RESULTS.md — those
+come from a 100,000-patent corpus that isn't in this repo. See below.
+
+### Also available
 
 ```bash
-python scripts/citation_signal_test.py         # cited-vs-random pair separation (AUC)
-python scripts/product_metrics.py              # latency, thresholds, diversity, footprint
+python scripts/citation_signal_test.py           # cited-vs-random pair separation (AUC)
 python scripts/product_metrics.py --charts-only  # redraw figures without re-benchmarking
 ```
 
 Each writes its CSVs to `models/` and its figures to `outputs/`.
+
+---
+
+## Reproducing the 100k-patent results
+
+Everything in [RESULTS.md](RESULTS.md) was produced on 100,000 patents pulled from Google
+Patents' public BigQuery dataset. That corpus is too large to commit and lands in
+`data/raw/`, which is gitignored — so rebuilding it is on you, and it is **not** a single
+command.
+
+**1. Prerequisites**
+
+- A Google Cloud project **with billing enabled**. Querying `patents-public-data` carries
+  no license fee, but running a BigQuery job still consumes quota.
+- Authenticate: `gcloud auth application-default login` (in Colab: `from google.colab import auth; auth.authenticate_user()`)
+- Install the two optional dependencies — they are commented out in `requirements.txt` by
+  default, since nothing else in the project needs them:
+
+  ```bash
+  pip install google-cloud-bigquery db-dtypes
+  ```
+
+**2. Check the cost before you spend it.** The query filters on country + CPC prefix, but
+BigQuery still scans the title/abstract/cpc/citation columns of every US patent to
+evaluate that filter — on the order of **a few hundred GB**, against a 1 TiB/month free
+tier. `--row-cap` limits rows returned, not bytes scanned, so it won't reduce that.
+
+```bash
+python scripts/fetch_corpus.py --project-id your-gcp-project --estimate-only
+```
+
+**3. Fetch the corpus.**
+
+```bash
+python scripts/fetch_corpus.py --project-id your-gcp-project
+```
+
+Prints the same estimate, waits for confirmation, then writes
+`data/raw/patents_g06n3_wide_100k.csv` — the exact filename
+[`artifacts.py`](src/patentlens/artifacts.py) looks for, so `train.py` picks it up with
+no further configuration. Pass `--yes` to skip the prompt, `--force` to overwrite an
+existing file, or `--cpc-prefix` / `--country` / `--row-cap` to pull a different slice.
+
+**4. Delete `models/` before retraining.** `train.py` automatically prefers the 100k CSV
+over the pilot — but checkpointing keys off file existence, not corpus identity, so a
+leftover `models/` from the pilot run gets reused silently and you'll get the old corpus
+back. `fetch_corpus.py` warns you if it finds one. Clear it, then re-run the Quick start
+commands.
+
+Budget hours, not minutes: encoding 100k abstracts, plus an evaluation sweep that takes
+~15-17 minutes per model for TF-IDF and LSA alone.
 
 ---
 

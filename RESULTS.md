@@ -8,7 +8,7 @@ Re-run to regenerate every number and chart here — see Reproducing below.
 - 100,000 US patents under CPC subclass **G06N3** (neural network architectures), title + abstract text, real citation graph. Pulled from Google Patents' public BigQuery dataset.
 - Citation ground truth: 44,985 of 100,000 patents (45.0%) cite at least one other patent that also falls inside the sample — 183,973 usable citation pairs total. (Compare: an earlier 3,000-patent pilot sample had only 127 query patents / 147 pairs, 4.2% coverage — the larger corpus makes every metric below far less noisy.)
 - Evaluated on 10,000 of those 44,985 query patents (randomly sampled, fixed seed) — see Limitations.
-- Scaling further, or fetching directly via BigQuery yourself, is wired up in [`src/patentlens/data_fetch.py`](src/patentlens/data_fetch.py).
+- This corpus is **not committed** (it lands in the gitignored `data/raw/`). To rebuild it you need a billing-enabled Google Cloud project and a few hundred GB of BigQuery scan quota — the full procedure, including the cost dry-run, is in [README.md → Reproducing the 100k-patent results](README.md#reproducing-the-100k-patent-results). The query itself lives in [`src/patentlens/data_fetch.py`](src/patentlens/data_fetch.py).
 
 ## Methodology
 
@@ -175,6 +175,12 @@ Worth knowing before scaling to millions of patents, though 307MB is trivial at 
 - **TF-IDF and LSA evaluation is still slower than ideal** (~15-17 min each for 10k queries, vs. BM25's ~4 min after the sparse-matrix rewrite) — their `rank()` implementations still do a full `argsort` per query rather than the partial-sort/argpartition optimization applied to BM25. Not a correctness issue, just a known remaining efficiency gap for future work.
 
 ## Reproducing
+
+> **These commands reproduce the numbers above only if `data/raw/patents_g06n3_wide_100k.csv` is present.**
+> On a fresh clone it isn't, and every script silently falls back to the committed
+> 3,000-patent pilot corpus — the pipeline runs fine, but the results will not match this
+> document. Fetch the full corpus first: see
+> [README.md → Reproducing the 100k-patent results](README.md#reproducing-the-100k-patent-results).
 
 ```bash
 # from the PatentLens repo root, with the virtualenv activated
