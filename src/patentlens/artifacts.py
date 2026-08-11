@@ -28,6 +28,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 EVAL_CACHE_DIR = MODELS_DIR / "_eval_cache"
+FIGURES_DIR = MODELS_DIR / "figures"
 
 # Prefer a larger fetched corpus when one is present; otherwise use the 3,000-patent
 # pilot CSV committed to the repo.
@@ -45,6 +46,23 @@ def log(msg):
 def find_raw_csv():
     """First existing entry in RAW_CSV_CANDIDATES, or None."""
     return next((p for p in RAW_CSV_CANDIDATES if p.exists()), None)
+
+
+def figure_path(filename, publish=False):
+    """Where a script should write a generated figure.
+
+    `outputs/` is a committed snapshot of the 100,000-patent run, and RESULTS.md embeds
+    those exact files. Writing there by default meant any local run -- which on a fresh
+    clone is the 3,000-patent pilot corpus -- silently replaced published figures with
+    charts from a different dataset, leaving RESULTS.md's prose describing 100k results
+    above charts showing 3k ones.
+
+    So figures default to the gitignored `models/figures/`, and overwriting the committed
+    set is opt-in via each script's `--publish-figures` flag.
+    """
+    directory = OUTPUTS_DIR if publish else FIGURES_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / filename
 
 
 def load_corpus():

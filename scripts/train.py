@@ -10,9 +10,14 @@ and re-run: it picks up wherever it left off instead of starting over. Delete sp
 files under models/ to force those steps to redo (e.g. `rm models/bm25.joblib` to refit
 just BM25).
 
+Figures go to the gitignored models/figures/ by default. Pass --publish-figures to write
+them to outputs/ instead, which is the committed set RESULTS.md embeds -- only correct on
+a full 100k-corpus run.
+
 Run from the repo root: `python scripts/train.py`
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -28,7 +33,7 @@ import seaborn as sns
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from patentlens import artifacts, cleaning, evaluation, retrieval  # noqa: E402
-from patentlens.artifacts import EVAL_CACHE_DIR, MODELS_DIR, OUTPUTS_DIR, log  # noqa: E402
+from patentlens.artifacts import EVAL_CACHE_DIR, MODELS_DIR, log  # noqa: E402
 
 sns.set_style("whitegrid")
 
@@ -36,6 +41,15 @@ MAX_EVAL_QUERIES = 10000  # see RESULTS.md "Limitations" for why this is a sampl
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--publish-figures", action="store_true",
+        help="write figures to the committed outputs/ instead of models/figures/. "
+             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+    )
+    args = parser.parse_args()
+    publish = args.publish_figures
+
     MODELS_DIR.mkdir(exist_ok=True)
     EVAL_CACHE_DIR.mkdir(exist_ok=True)
 
@@ -162,10 +176,10 @@ def main():
     log("\n" + str(pivot))
 
     _plot_metric_with_ci(summary_df, 'Recall', k_values, "Recall@k with 95% bootstrap CI")
-    plt.savefig(OUTPUTS_DIR / "recall_comparison.png", dpi=150)
+    plt.savefig(artifacts.figure_path("recall_comparison.png", publish), dpi=150)
 
     _plot_metric_with_ci(summary_df, 'NDCG', k_values, "NDCG@k with 95% bootstrap CI (ranking quality)")
-    plt.savefig(OUTPUTS_DIR / "ndcg_comparison.png", dpi=150)
+    plt.savefig(artifacts.figure_path("ndcg_comparison.png", publish), dpi=150)
 
     mrr_df = summary_df[summary_df['metric'] == 'MRR'].sort_values('mean', ascending=False)
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -177,7 +191,7 @@ def main():
     ax.set_title("MRR by model (higher = true citation ranked closer to #1)", fontweight='bold')
     plt.xticks(rotation=20, ha='right')
     plt.tight_layout()
-    plt.savefig(OUTPUTS_DIR / "mrr_comparison.png", dpi=150)
+    plt.savefig(artifacts.figure_path("mrr_comparison.png", publish), dpi=150)
 
     log("Running significance tests...")
     best_model_name = mrr_df.iloc[0]['model']
@@ -205,6 +219,8 @@ def main():
     pivot.to_csv(MODELS_DIR / "metrics_pivot.csv")
     significance_df.to_csv(MODELS_DIR / "significance_tests.csv", index=False)
 
+    figures_dest = artifacts.OUTPUTS_DIR if publish else artifacts.FIGURES_DIR
+    log(f"Saved figures to {figures_dest.relative_to(artifacts.PROJECT_ROOT)}/")
     log(f"Saved final artifacts to {MODELS_DIR}")
     for p in sorted(MODELS_DIR.rglob("*")):
         if p.is_file():

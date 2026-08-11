@@ -3,12 +3,15 @@ overlaps? Runs evaluation.citation_signal_test() for every model against the cac
 artifacts from scripts/train.py, on a sample of citation pairs (not the full ground
 truth -- see MAX_PAIRS below).
 
-Writes models/citation_signal_test.csv and two figures used by RESULTS.md:
-outputs/citation_signal_distributions.png and outputs/citation_signal_auc.png.
+Writes models/citation_signal_test.csv plus citation_signal_distributions.png and
+citation_signal_auc.png to the gitignored models/figures/. Pass --publish-figures to
+write them to outputs/ instead, which is the committed set RESULTS.md embeds -- only
+correct on a full 100k-corpus run.
 
 Run from the repo root, after scripts/train.py: `python scripts/citation_signal_test.py`
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -21,7 +24,7 @@ import seaborn as sns
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from patentlens import artifacts, evaluation  # noqa: E402
-from patentlens.artifacts import MODELS_DIR, OUTPUTS_DIR, log  # noqa: E402
+from patentlens.artifacts import MODELS_DIR, log  # noqa: E402
 
 sns.set_style("whitegrid")
 
@@ -29,6 +32,14 @@ MAX_PAIRS = 15000
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--publish-figures", action="store_true",
+        help="write figures to the committed outputs/ instead of models/figures/. "
+             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+    )
+    args = parser.parse_args()
+
     log("Loading cached corpus + ground truth...")
     df = artifacts.load_corpus()
     ground_truth = artifacts.load_ground_truth()
@@ -71,12 +82,14 @@ def main():
     log("\n" + str(results_df.to_string(index=False)))
 
     _plot_score_distributions(chart_data)
-    plt.savefig(OUTPUTS_DIR / "citation_signal_distributions.png", dpi=150)
+    plt.savefig(artifacts.figure_path("citation_signal_distributions.png", args.publish_figures), dpi=150)
 
     _plot_auc_bars(results_df)
-    plt.savefig(OUTPUTS_DIR / "citation_signal_auc.png", dpi=150)
+    plt.savefig(artifacts.figure_path("citation_signal_auc.png", args.publish_figures), dpi=150)
 
-    log("Saved models/citation_signal_test.csv and outputs/citation_signal_*.png")
+    dest = artifacts.OUTPUTS_DIR if args.publish_figures else artifacts.FIGURES_DIR
+    log(f"Saved models/citation_signal_test.csv and "
+        f"{dest.relative_to(artifacts.PROJECT_ROOT)}/citation_signal_*.png")
     log("DONE")
 
 

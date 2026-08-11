@@ -8,14 +8,19 @@ whether to actually USE this tool would ask.
     duplicates of each other? (redundant results look impressive but aren't useful)
   - Footprint: how much disk/memory does each model need? (deployment cost)
 
-Writes five CSVs to models/ and the four figures RESULTS.md embeds to outputs/.
-The app also reads models/product_threshold{,_curve}.csv from here to calibrate its
-STRONG/MODERATE/WEAK badges.
+Writes five CSVs to models/ and four figures to models/figures/. The app also reads
+models/product_threshold{,_curve}.csv from here to calibrate its STRONG/MODERATE/WEAK
+badges -- without this script every badge reads N/A.
+
+Figures go to the gitignored models/figures/ by default. Pass --publish-figures to write
+them to outputs/ instead, which is the committed set RESULTS.md embeds -- only correct on
+a full 100k-corpus run.
 
 Run from the repo root, after scripts/train.py:
 
-    python scripts/product_metrics.py                 # compute metrics, then draw charts
-    python scripts/product_metrics.py --charts-only   # redraw charts from existing CSVs
+    python scripts/product_metrics.py                     # compute metrics, then draw charts
+    python scripts/product_metrics.py --charts-only       # redraw charts from existing CSVs
+    python scripts/product_metrics.py --publish-figures   # update the figures in outputs/
 """
 
 import argparse
@@ -33,7 +38,7 @@ import seaborn as sns
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from patentlens import artifacts, evaluation  # noqa: E402
-from patentlens.artifacts import MODELS_DIR, OUTPUTS_DIR, log  # noqa: E402
+from patentlens.artifacts import MODELS_DIR, log  # noqa: E402
 
 sns.set_style("whitegrid")
 PALETTE = {"TF-IDF": "#e76f51", "BM25": "#f4a261", "LSA": "#e9c46a", "MiniLM": "#2a9d8f"}
@@ -155,7 +160,7 @@ def model_footprint():
 
 # ---------------------------------------------------------------------------- charts
 
-def plot_latency():
+def plot_latency(publish=False):
     df = pd.read_csv(MODELS_DIR / "product_latency.csv")
     fig, ax = plt.subplots(figsize=(7, 4.5))
     bars = ax.bar(df['model'], df['mean_ms'], color=model_colors(df['model']),
@@ -168,11 +173,11 @@ def plot_latency():
     for s in ['top', 'right']:
         ax.spines[s].set_visible(False)
     plt.tight_layout()
-    plt.savefig(OUTPUTS_DIR / "product_latency.png", dpi=150)
+    plt.savefig(artifacts.figure_path("product_latency.png", publish), dpi=150)
     plt.close(fig)
 
 
-def plot_threshold_curves():
+def plot_threshold_curves(publish=False):
     curve_df = pd.read_csv(MODELS_DIR / "product_threshold_curve.csv")
     best_df = pd.read_csv(MODELS_DIR / "product_threshold.csv")
 
@@ -194,11 +199,11 @@ def plot_threshold_curves():
     for s in ['top', 'right']:
         ax.spines[s].set_visible(False)
     plt.tight_layout()
-    plt.savefig(OUTPUTS_DIR / "product_threshold_curve.png", dpi=150)
+    plt.savefig(artifacts.figure_path("product_threshold_curve.png", publish), dpi=150)
     plt.close(fig)
 
 
-def plot_diversity():
+def plot_diversity(publish=False):
     df = pd.read_csv(MODELS_DIR / "product_diversity.csv")
     cosine_models = df[df['model'] != 'BM25']
     fig, ax = plt.subplots(figsize=(6.5, 4.5))
@@ -216,11 +221,11 @@ def plot_diversity():
     for s in ['top', 'right']:
         ax.spines[s].set_visible(False)
     plt.tight_layout()
-    plt.savefig(OUTPUTS_DIR / "product_diversity.png", dpi=150)
+    plt.savefig(artifacts.figure_path("product_diversity.png", publish), dpi=150)
     plt.close(fig)
 
 
-def plot_footprint():
+def plot_footprint(publish=False):
     df = pd.read_csv(MODELS_DIR / "product_footprint.csv")
     fig, ax = plt.subplots(figsize=(6.5, 4.5))
     bars = ax.bar(df['model'], df['artifact_size_mb'], color=model_colors(df['model']))
@@ -232,17 +237,18 @@ def plot_footprint():
     for s in ['top', 'right']:
         ax.spines[s].set_visible(False)
     plt.tight_layout()
-    plt.savefig(OUTPUTS_DIR / "product_footprint.png", dpi=150)
+    plt.savefig(artifacts.figure_path("product_footprint.png", publish), dpi=150)
     plt.close(fig)
 
 
-def draw_all_charts():
-    plot_latency()
-    plot_threshold_curves()
-    plot_diversity()
-    plot_footprint()
+def draw_all_charts(publish=False):
+    plot_latency(publish)
+    plot_threshold_curves(publish)
+    plot_diversity(publish)
+    plot_footprint(publish)
+    dest = artifacts.OUTPUTS_DIR if publish else artifacts.FIGURES_DIR
     log("Saved product_latency.png, product_threshold_curve.png, product_diversity.png, "
-        "product_footprint.png to outputs/")
+        f"product_footprint.png to {dest.relative_to(artifacts.PROJECT_ROOT)}/")
 
 
 # ------------------------------------------------------------------------------ main
@@ -284,13 +290,18 @@ def main():
         "--charts-only", action="store_true",
         help="skip the benchmarks and redraw the figures from the CSVs already in models/",
     )
+    parser.add_argument(
+        "--publish-figures", action="store_true",
+        help="write figures to the committed outputs/ instead of models/figures/. "
+             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+    )
     args = parser.parse_args()
 
     if not args.charts_only:
         compute_all_metrics()
 
     log("--- Charts ---")
-    draw_all_charts()
+    draw_all_charts(args.publish_figures)
     log("DONE")
 
 

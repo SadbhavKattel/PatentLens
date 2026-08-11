@@ -54,10 +54,12 @@ PatentLens/
 ├── notebooks/
 │   └── 01_exploratory_analysis.ipynb
 │
-└── outputs/                # committed figures + metric snapshots used by RESULTS.md
+└── outputs/                # committed 100k-run figures + metric snapshots, embedded by RESULTS.md
 ```
 
-Two directories are **generated, not committed**: `models/` (fitted models and evaluation caches, rebuilt by `scripts/train.py`) and `data/raw/` (large corpora fetched via `data_fetch.py`).
+Two directories are **generated, not committed**: `models/` (fitted models, evaluation caches, and the figures from your own runs under `models/figures/`) and `data/raw/` (large corpora fetched via `data_fetch.py`).
+
+`outputs/` is a curated snapshot of the 100,000-patent run, not a scratch directory — the scripts write their figures to `models/figures/` and only touch `outputs/` when you pass `--publish-figures`. That keeps a local pilot-corpus run from silently replacing the charts RESULTS.md describes.
 
 **Nothing here ships pre-trained.** A fresh clone has no `models/` directory, and the app refuses to start without one — you build it locally in the Quick start below.
 
@@ -100,7 +102,8 @@ re-run, so an interrupted run resumes where it stopped. Delete a file under `mod
 force that step to redo.
 
 This path trains quickly, but it will **not** reproduce the numbers in RESULTS.md — those
-come from a 100,000-patent corpus that isn't in this repo. See below.
+come from a 100,000-patent corpus that isn't in this repo. See below. Your run's figures
+land in `models/figures/`; the committed `outputs/` set is left alone.
 
 ### Also available
 
@@ -109,7 +112,9 @@ python scripts/citation_signal_test.py           # cited-vs-random pair separati
 python scripts/product_metrics.py --charts-only  # redraw figures without re-benchmarking
 ```
 
-Each writes its CSVs to `models/` and its figures to `outputs/`.
+Each writes its CSVs to `models/` and its figures to `models/figures/`. All three scripts
+accept `--publish-figures` to write into the committed `outputs/` instead — only correct
+after a full 100k-corpus run, since that's the set RESULTS.md embeds.
 
 ---
 
