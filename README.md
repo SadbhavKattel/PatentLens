@@ -146,10 +146,9 @@ Discussed in full in [docs/RESULTS.md](docs/RESULTS.md).
 
 Built by a three-person team for the AI4ALL Ignite program:
 
-<!-- TODO: link Seemya's GitHub profile once the handle is known -->
 - **Mutawakil Rabiu** — [@Muta4ever](https://github.com/Muta4ever)
 - **Sadbhav Kattel** — [@SadbhavKattel](https://github.com/SadbhavKattel)
-- **Seemya Momin**
+- **Seemya Momin** — [@seemyamomin](https://github.com/seemyamomin)
 
 ---
 
