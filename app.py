@@ -212,7 +212,14 @@ def main():
 
     with st.sidebar:
         st.subheader("Settings")
-        model_name = st.selectbox("Model", list(retrievers.keys()))
+        # Default to MiniLM rather than whichever model happens to come first in the
+        # loading order. It ties BM25 on ranking metrics but is the only model that
+        # still separates real citations from random pairs when the two patents share
+        # little vocabulary (AUC 0.696 vs BM25's 0.517) -- see docs/RESULTS.md. Falling
+        # back to index 0 keeps this working if MiniLM isn't in a given models/ build.
+        model_names = list(retrievers.keys())
+        default_model = model_names.index("MiniLM") if "MiniLM" in model_names else 0
+        model_name = st.selectbox("Model", model_names, index=default_model)
         top_k = st.slider("Number of results", min_value=3, max_value=20, value=8)
         st.caption(f"Corpus: {len(df):,} patents")
 
