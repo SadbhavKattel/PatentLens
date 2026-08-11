@@ -13,7 +13,7 @@ models/product_threshold{,_curve}.csv from here to calibrate its STRONG/MODERATE
 badges -- without this script every badge reads N/A.
 
 Figures go to the gitignored models/figures/ by default. Pass --publish-figures to write
-them to outputs/ instead, which is the committed set RESULTS.md embeds -- only correct on
+them to outputs/ instead, which is the committed set docs/RESULTS.md embeds -- only correct on
 a full 100k-corpus run.
 
 Run from the repo root, after scripts/train.py:
@@ -293,7 +293,7 @@ def main():
     parser.add_argument(
         "--publish-figures", action="store_true",
         help="write figures to the committed outputs/ instead of models/figures/. "
-             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+             "Only use this on a full 100k-corpus run -- outputs/ is what docs/RESULTS.md embeds.",
     )
     args = parser.parse_args()
 

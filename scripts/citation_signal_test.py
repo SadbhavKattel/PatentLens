@@ -5,7 +5,7 @@ truth -- see MAX_PAIRS below).
 
 Writes models/citation_signal_test.csv plus citation_signal_distributions.png and
 citation_signal_auc.png to the gitignored models/figures/. Pass --publish-figures to
-write them to outputs/ instead, which is the committed set RESULTS.md embeds -- only
+write them to outputs/ instead, which is the committed set docs/RESULTS.md embeds -- only
 correct on a full 100k-corpus run.
 
 Run from the repo root, after scripts/train.py: `python scripts/citation_signal_test.py`
@@ -36,7 +36,7 @@ def main():
     parser.add_argument(
         "--publish-figures", action="store_true",
         help="write figures to the committed outputs/ instead of models/figures/. "
-             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+             "Only use this on a full 100k-corpus run -- outputs/ is what docs/RESULTS.md embeds.",
     )
     args = parser.parse_args()
 

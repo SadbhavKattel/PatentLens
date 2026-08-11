@@ -9,7 +9,7 @@ Layout:
     data/      corpus CSVs (the 3k pilot is committed; larger fetched corpora go in
                data/raw/ and are gitignored)
     models/    fitted models + evaluation caches, written by scripts/train.py (gitignored)
-    outputs/   figures and metric CSVs used by RESULTS.md (committed)
+    outputs/   figures and metric CSVs used by docs/RESULTS.md (committed)
 
 `PROJECT_ROOT` resolves from this file's location, which holds for a source checkout
 and for an editable install (`pip install -e .`).
@@ -51,10 +51,10 @@ def find_raw_csv():
 def figure_path(filename, publish=False):
     """Where a script should write a generated figure.
 
-    `outputs/` is a committed snapshot of the 100,000-patent run, and RESULTS.md embeds
+    `outputs/` is a committed snapshot of the 100,000-patent run, and docs/RESULTS.md embeds
     those exact files. Writing there by default meant any local run -- which on a fresh
     clone is the 3,000-patent pilot corpus -- silently replaced published figures with
-    charts from a different dataset, leaving RESULTS.md's prose describing 100k results
+    charts from a different dataset, leaving docs/RESULTS.md's prose describing 100k results
     above charts showing 3k ones.
 
     So figures default to the gitignored `models/figures/`, and overwriting the committed

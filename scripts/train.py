@@ -11,7 +11,7 @@ files under models/ to force those steps to redo (e.g. `rm models/bm25.joblib` t
 just BM25).
 
 Figures go to the gitignored models/figures/ by default. Pass --publish-figures to write
-them to outputs/ instead, which is the committed set RESULTS.md embeds -- only correct on
+them to outputs/ instead, which is the committed set docs/RESULTS.md embeds -- only correct on
 a full 100k-corpus run.
 
 Run from the repo root: `python scripts/train.py`
@@ -37,7 +37,7 @@ from patentlens.artifacts import EVAL_CACHE_DIR, MODELS_DIR, log  # noqa: E402
 
 sns.set_style("whitegrid")
 
-MAX_EVAL_QUERIES = 10000  # see RESULTS.md "Limitations" for why this is a sample, not all queries
+MAX_EVAL_QUERIES = 10000  # see docs/RESULTS.md "Limitations" for why this is a sample, not all queries
 
 
 def main():
@@ -45,7 +45,7 @@ def main():
     parser.add_argument(
         "--publish-figures", action="store_true",
         help="write figures to the committed outputs/ instead of models/figures/. "
-             "Only use this on a full 100k-corpus run -- outputs/ is what RESULTS.md embeds.",
+             "Only use this on a full 100k-corpus run -- outputs/ is what docs/RESULTS.md embeds.",
     )
     args = parser.parse_args()
     publish = args.publish_figures
