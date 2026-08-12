@@ -3,12 +3,16 @@ overlaps? Runs evaluation.citation_signal_test() for every model against the cac
 artifacts from scripts/train.py, on a sample of citation pairs (not the full ground
 truth -- see MAX_PAIRS below).
 
-Run from the repo root, after scripts/train.py has produced models/: `python scripts/citation_signal_test.py`
+Writes models/citation_signal_test.csv plus citation_signal_distributions.png and
+citation_signal_auc.png to the gitignored models/figures/. Pass --publish-figures to
+write them to outputs/ instead, which is the committed set docs/RESULTS.md embeds -- only
+correct on a full 100k-corpus run.
+
+Run from the repo root, after scripts/train.py: `python scripts/citation_signal_test.py`
 """
 
-import json
+import argparse
 import sys
-import time
 from pathlib import Path
 
 import matplotlib
@@ -17,36 +21,32 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from patentlens import evaluation, retrieval  # noqa: E402
+from patentlens import artifacts, evaluation  # noqa: E402
+from patentlens.artifacts import MODELS_DIR, log  # noqa: E402
 
 sns.set_style("whitegrid")
 
-MODELS_DIR = PROJECT_ROOT / "models"
-EVAL_DIR = MODELS_DIR / "_eval_cache"
 MAX_PAIRS = 15000
 
 
-def log(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--publish-figures", action="store_true",
+        help="write figures to the committed outputs/ instead of models/figures/. "
+             "Only use this on a full 100k-corpus run -- outputs/ is what docs/RESULTS.md embeds.",
+    )
+    args = parser.parse_args()
+
     log("Loading cached corpus + ground truth...")
-    df = pd.read_parquet(MODELS_DIR / "patents.parquet")
-    with open(EVAL_DIR / "ground_truth.json") as f:
-        ground_truth = {int(k): v for k, v in json.load(f).items()}
+    df = artifacts.load_corpus()
+    ground_truth = artifacts.load_ground_truth()
     log(f"{len(ground_truth)} query patents, {sum(len(v) for v in ground_truth.values())} citation pairs available")
 
     log("Loading cached models...")
-    tfidf = retrieval.TfidfRetriever.load(MODELS_DIR / "tfidf.joblib")
-    bm25 = retrieval.Bm25Retriever.load(MODELS_DIR / "bm25.joblib")
-    lsa = retrieval.LsaRetriever.load(MODELS_DIR / "lsa.joblib", tfidf)
-    minilm = retrieval.EmbeddingRetriever.load(MODELS_DIR / "minilm")
-
-    retrievers = {"TF-IDF": tfidf, "BM25": bm25, "LSA": lsa, "MiniLM": minilm}
+    retrievers = artifacts.load_retrievers()
 
     log("Building token sets for text-overlap control...")
     token_sets = df['clean_text'].str.split().apply(set).tolist()
@@ -82,12 +82,14 @@ def main():
     log("\n" + str(results_df.to_string(index=False)))
 
     _plot_score_distributions(chart_data)
-    plt.savefig(PROJECT_ROOT / "outputs" / "citation_signal_distributions.png", dpi=150)
+    plt.savefig(artifacts.figure_path("citation_signal_distributions.png", args.publish_figures), dpi=150)
 
     _plot_auc_bars(results_df)
-    plt.savefig(PROJECT_ROOT / "outputs" / "citation_signal_auc.png", dpi=150)
+    plt.savefig(artifacts.figure_path("citation_signal_auc.png", args.publish_figures), dpi=150)
 
-    log(f"Saved models/citation_signal_test.csv and outputs/citation_signal_*.png")
+    dest = artifacts.OUTPUTS_DIR if args.publish_figures else artifacts.FIGURES_DIR
+    log(f"Saved models/citation_signal_test.csv and "
+        f"{dest.relative_to(artifacts.PROJECT_ROOT)}/citation_signal_*.png")
     log("DONE")
 
 

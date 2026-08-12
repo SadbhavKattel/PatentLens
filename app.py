@@ -16,14 +16,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-PROJECT_ROOT = Path(__file__).parent
-SRC_PATH = PROJECT_ROOT / "src"
+SRC_PATH = Path(__file__).resolve().parent / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from patentlens import cleaning, retrieval  # noqa: E402
-
-MODELS_DIR = PROJECT_ROOT / "models"
+from patentlens import artifacts, cleaning, retrieval  # noqa: E402
+from patentlens.artifacts import MODELS_DIR  # noqa: E402
 
 st.set_page_config(page_title="PatentLens", layout="centered")
 
@@ -86,19 +84,8 @@ st.markdown(
 
 @st.cache_resource(show_spinner="Loading models and patent corpus...")
 def load_everything():
-    df = pd.read_parquet(MODELS_DIR / "patents.parquet")
-
-    tfidf = retrieval.TfidfRetriever.load(MODELS_DIR / "tfidf.joblib")
-    bm25 = retrieval.Bm25Retriever.load(MODELS_DIR / "bm25.joblib")
-    lsa = retrieval.LsaRetriever.load(MODELS_DIR / "lsa.joblib", tfidf)
-    minilm = retrieval.EmbeddingRetriever.load(MODELS_DIR / "minilm")
-
-    retrievers = {
-        "TF-IDF": tfidf,
-        "BM25": bm25,
-        "LSA": lsa,
-        "MiniLM": minilm,
-    }
+    df = artifacts.load_corpus()
+    retrievers = artifacts.load_retrievers()
 
     # PatentSBERTa/Hybrid are optional -- not every training run includes them (the slow
     # step on large corpora), so only wire them in when their artifacts actually exist.
@@ -106,7 +93,8 @@ def load_everything():
     if patentsberta_dir.exists():
         patentsberta = retrieval.EmbeddingRetriever.load(patentsberta_dir)
         hybrid = retrieval.HybridRetriever(
-            [bm25, patentsberta], weights=[1.0, 1.0], name="Hybrid (BM25 + PatentSBERTa)"
+            [retrievers["BM25"], patentsberta], weights=[1.0, 1.0],
+            name="Hybrid (BM25 + PatentSBERTa)",
         )
         retrievers["PatentSBERTa"] = patentsberta
         retrievers[hybrid.name] = hybrid
@@ -165,8 +153,8 @@ def _authors_label(row) -> str:
 def _badge_class(score: float, calibration) -> tuple:
     if calibration is None:
         # No calibration data for this model (e.g. product_metrics.py hasn't been run,
-        # or this is an optional model like PatentSBERTa it doesn't cover) -- fall back to
-        # rank order within this result set rather than showing a meaningless color.
+        # or this is an optional model like PatentSBERTa it doesn't cover) -- show a
+        # neutral badge rather than a color that would imply a confidence we can't back.
         return "badge-yellow", "N/A"
     moderate, strong = calibration
     if score >= strong:
@@ -224,7 +212,14 @@ def main():
 
     with st.sidebar:
         st.subheader("Settings")
-        model_name = st.selectbox("Model", list(retrievers.keys()))
+        # Default to MiniLM rather than whichever model happens to come first in the
+        # loading order. It ties BM25 on ranking metrics but is the only model that
+        # still separates real citations from random pairs when the two patents share
+        # little vocabulary (AUC 0.696 vs BM25's 0.517) -- see docs/RESULTS.md. Falling
+        # back to index 0 keeps this working if MiniLM isn't in a given models/ build.
+        model_names = list(retrievers.keys())
+        default_model = model_names.index("MiniLM") if "MiniLM" in model_names else 0
+        model_name = st.selectbox("Model", model_names, index=default_model)
         top_k = st.slider("Number of results", min_value=3, max_value=20, value=8)
         st.caption(f"Corpus: {len(df):,} patents")
 

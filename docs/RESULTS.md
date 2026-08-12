@@ -8,7 +8,7 @@ Re-run to regenerate every number and chart here — see Reproducing below.
 - 100,000 US patents under CPC subclass **G06N3** (neural network architectures), title + abstract text, real citation graph. Pulled from Google Patents' public BigQuery dataset.
 - Citation ground truth: 44,985 of 100,000 patents (45.0%) cite at least one other patent that also falls inside the sample — 183,973 usable citation pairs total. (Compare: an earlier 3,000-patent pilot sample had only 127 query patents / 147 pairs, 4.2% coverage — the larger corpus makes every metric below far less noisy.)
 - Evaluated on 10,000 of those 44,985 query patents (randomly sampled, fixed seed) — see Limitations.
-- Scaling further, or fetching directly via BigQuery yourself, is wired up in [`src/patentlens/data_fetch.py`](src/patentlens/data_fetch.py).
+- This corpus is **not committed** (it lands in the gitignored `data/raw/`). To rebuild it you need a billing-enabled Google Cloud project and a few hundred GB of BigQuery scan quota — the full procedure, including the cost dry-run, is in [SETUP.md → Reproducing the 100k-patent results](SETUP.md#reproducing-the-100k-patent-results). The query itself lives in [`src/patentlens/data_fetch.py`](../src/patentlens/data_fetch.py).
 
 ## Methodology
 
@@ -40,11 +40,11 @@ PatentSBERTa (a patent-claims-tuned embedding model) and a BM25+PatentSBERTa hyb
 | TF-IDF | 0.0790 | 0.0238 | 0.0660 | 0.0953 |
 | LSA | 0.0629 | 0.0192 | 0.0553 | 0.0822 |
 
-Full table (all k values): [`models/metrics_pivot.csv`](models/metrics_pivot.csv) (gitignored — regenerate by re-running, see below).
+Full table (all k values): [`outputs/metrics_pivot.csv`](../outputs/metrics_pivot.csv) — a committed snapshot of this run. Re-running the pipeline rewrites it under `models/` (see Reproducing).
 
-![Recall@k comparison](outputs/recall_comparison.png)
-![NDCG@k comparison](outputs/ndcg_comparison.png)
-![MRR comparison](outputs/mrr_comparison.png)
+![Recall@k comparison](../outputs/recall_comparison.png)
+![NDCG@k comparison](../outputs/ndcg_comparison.png)
+![MRR comparison](../outputs/mrr_comparison.png)
 
 ### Is MiniLM actually the best model, or just highest on the chart?
 
@@ -88,8 +88,8 @@ real citation from a random pair; 1.0 = perfect separation.
 | TF-IDF | 0.816 | 0.553 | +49.1% |
 | BM25 | 0.815 | 0.517 (≈ chance) | −2.7% |
 
-![Score distributions: cited vs random pairs](outputs/citation_signal_distributions.png)
-![AUC: all pairs vs low-overlap pairs](outputs/citation_signal_auc.png)
+![Score distributions: cited vs random pairs](../outputs/citation_signal_distributions.png)
+![AUC: all pairs vs low-overlap pairs](../outputs/citation_signal_auc.png)
 
 **Plain-language takeaway:** yes — every model scores true citations meaningfully higher
 than random pairs overall (AUC 0.81-0.85, well above the 0.5 coin-flip line). But that
@@ -117,7 +117,7 @@ usable" — the questions that actually decide whether a model belongs in a real
 | LSA | 118ms | 199ms |
 | TF-IDF | 119ms | 149ms |
 
-![Latency comparison](outputs/product_latency.png)
+![Latency comparison](../outputs/product_latency.png)
 
 BM25 and MiniLM are both fast enough for interactive use. TF-IDF and LSA are ~4x slower —
 not because the underlying math is slower, but because `retrieval.py`'s TF-IDF/LSA
@@ -137,7 +137,7 @@ similarity thresholds and finds the best precision/recall tradeoff (best F1):
 | TF-IDF | 0.021 | 0.708 | 0.790 | 0.746 |
 | BM25 | 6.976 | 0.726 | 0.762 | 0.743 |
 
-![Precision-recall curve](outputs/product_threshold_curve.png)
+![Precision-recall curve](../outputs/product_threshold_curve.png)
 
 MiniLM's curve sits above every other model's across the whole range, not just at one
 point — confirms it's the better choice for this specific product decision (flagging
@@ -150,7 +150,7 @@ which is exactly why the threshold should be set per-model, not copied across.
 results within the same top-10 list — high means the model is returning near-duplicates
 of each other rather than a genuinely varied set of related patents:
 
-![Result diversity](outputs/product_diversity.png)
+![Result diversity](../outputs/product_diversity.png)
 
 **LSA's results are the most redundant (0.79 avg internal similarity)** — consistent with
 it being the weakest model elsewhere in this doc: compressing to 100 dimensions collapses
@@ -162,7 +162,7 @@ score isn't on a 0-1 scale, so it isn't numerically comparable here.)
 
 **Storage cost** (100,000-patent corpus):
 
-![Footprint comparison](outputs/product_footprint.png)
+![Footprint comparison](../outputs/product_footprint.png)
 
 MiniLM needs ~6.7x the disk of TF-IDF (307MB vs. 46MB) for its embeddings + FAISS index.
 Worth knowing before scaling to millions of patents, though 307MB is trivial at 100k.
@@ -176,13 +176,21 @@ Worth knowing before scaling to millions of patents, though 307MB is trivial at 
 
 ## Reproducing
 
+> **These commands reproduce the numbers above only if `data/raw/patents_g06n3_wide_100k.csv` is present.**
+> On a fresh clone it isn't, and every script silently falls back to the committed
+> 3,000-patent pilot corpus — the pipeline runs fine, but the results will not match this
+> document. Fetch the full corpus first: see
+> [SETUP.md → Reproducing the 100k-patent results](SETUP.md#reproducing-the-100k-patent-results).
+
 ```bash
-# from the PatentLens repo root, with venv activated
-python scripts/train.py                    # checkpointed: safe to re-run, skips any already-completed step
-python scripts/citation_signal_test.py     # citation-vs-random-pair test, requires train.py's output
-python scripts/product_metrics.py          # latency, threshold sweep, diversity, footprint
-python scripts/product_metrics_charts.py   # charts for the above
+# from the PatentLens repo root, with the virtualenv activated
+python scripts/train.py                 # checkpointed: safe to re-run, skips any already-completed step
+python scripts/citation_signal_test.py  # citation-vs-random-pair test, requires train.py's output
+python scripts/product_metrics.py       # latency, threshold sweep, diversity, footprint + their charts
 streamlit run app.py
 ```
+
+To redraw the product-metric figures without re-running the benchmarks:
+`python scripts/product_metrics.py --charts-only`.
 
 `scripts/train.py` saves each fitted model and each model's evaluation results to `models/` as soon as they're computed (not just at the end), so an interrupted run can be resumed by simply running it again — already-completed steps are loaded from disk instead of recomputed. Delete files under `models/` to force specific steps to redo.
